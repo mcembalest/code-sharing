@@ -1,2 +1,3 @@
-# code-sharing
-Sharing code!
+# Code Sharing
+
+Generic repository to share bits of code with people :)
