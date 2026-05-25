@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+.env
+_diag/samples/
+_diag/pages*.jsonl
+_diag/sample_cards.jsonl
+baseline/_index/
+
+# generated review/trace artifacts (regenerate with review_cards.py)
+review_cards*.html
+trace.md
+
+# source PDF — 233MB, exceeds GitHub's 100MB limit; runtime data dependency, kept local only
+*.pdf
+
+# browser/session artifacts (Playwright MCP screenshots + snapshots)
+.playwright-mcp/
+*.png
+
