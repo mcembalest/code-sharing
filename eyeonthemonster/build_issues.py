@@ -20,6 +20,19 @@ BOILERPLATE_RE = re.compile(
     r"^(?:please see important disclaimers|important disclosures|table of contents)\b",
     re.IGNORECASE,
 )
+# Disclaimer/boilerplate fragments that appear as the first surviving line(s) of an issue and were
+# being mistaken for titles (e.g. "Investment products: Not FDIC insured...", the all-caps multi-line
+# "INVESTMENT PRODUCTS ARE: ... NOT FDIC INSURED ..." block and its wrap continuations, and the
+# "Access our full coronavirus analysis web portal here" banner). Matched anywhere in the line,
+# case-insensitively, so we skip past the whole disclaimer block to the real headline beneath it.
+DISCLAIMER_FRAGMENTS = re.compile(
+    r"(?:not fdic insured|investment products are|investment products:"
+    r"|not a deposit|guaranteed by,?\s*jpmorgan|subject to investment risk"
+    r"|possible loss of the principal|or guaranteed by"
+    r"|access our .*web portal|web portal here)",
+    re.IGNORECASE,
+)
+URL_RE = re.compile(r"^(?:https?://|www\.)", re.IGNORECASE)
 
 
 def norm_date(value: str | None) -> str | None:
@@ -49,6 +62,10 @@ def title_from_page(text: str) -> str:
         if HEADER_RE.match(line):
             continue
         if BOILERPLATE_RE.match(line):
+            continue
+        if DISCLAIMER_FRAGMENTS.search(line):
+            continue
+        if URL_RE.match(line):
             continue
         return line[:180]
     return "Untitled"

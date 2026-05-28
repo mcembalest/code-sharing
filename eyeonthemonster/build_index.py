@@ -10,6 +10,8 @@ import numpy as np
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
+from clean_text import clean_content
+
 
 ROOT = Path(__file__).resolve().parent
 PAGES_PATH = ROOT / "_diag" / "pages_clean.jsonl"
@@ -68,14 +70,17 @@ def main() -> None:
         issue = issue_for_page(issues, page)
         card_text = cards.get(page, "")
         topic_text = " ".join(topic_labels.get(t, t) for t in granular)
-        search_text = "\n\n".join(part for part in [src.get("content_text") or "", card_text, topic_text] if part)
+        # Strip running-header/footer/disclaimer boilerplate so neither the report quote bodies nor
+        # the embeddings carry the J.P. Morgan letterhead + FDIC block that sat on every page.
+        content_text = clean_content(src.get("content_text") or "")
+        search_text = "\n\n".join(part for part in [content_text, card_text, topic_text] if part)
         records.append(
             {
                 "page": page,
                 "issue_id": issue.get("issue_id") if issue else None,
                 "issue_date": src.get("issue_date"),
                 "title": issue.get("title") if issue else None,
-                "content_text": src.get("content_text") or "",
+                "content_text": content_text,
                 "card_text": card_text,
                 "is_chart_bearing": is_true(src.get("is_chart_bearing")),
                 "high_level": list(tags.get("high_level", [])),

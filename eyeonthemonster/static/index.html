@@ -3,103 +3,497 @@
 <title>Eye on the Monster - live report</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
-  :root { color-scheme: light; --line:#d7dde5; --soft:#f6f7f9; --ink:#20242a; --muted:#667085; --accent:#1f7a8c; --ok:#287a48; --bar-h:52px; }
+  :root {
+    color-scheme: light;
+    --paper:#ffffff;
+    --field:#f6f7f4;
+    --line:#cfd5d8;
+    --rule:#1c1c1c;
+    --ink:#171a1d;
+    --muted:#5d6670;
+    --accent:#126f83;
+    --accent-soft:#e8f3f5;
+    --ok:#287a48;
+    --warn:#b54708;
+    --danger:#b42318;
+    --bar-h:56px;
+  }
   * { box-sizing: border-box; }
-  body { font: 14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; margin: 0; color: var(--ink); background: #fff; }
-
-  /* --- top bar --- */
-  #bar { position: sticky; top: 0; z-index: 30; display: flex; gap: .5rem; align-items: center; height: var(--bar-h); padding: 0 1rem; border-bottom: 1px solid var(--line); background: #fff; }
-  #q { flex: 1; max-width: 820px; font: inherit; padding: .45rem .6rem; border: 1px solid #b9c2cf; border-radius: 4px; }
-  button { font: inherit; padding: .45rem .8rem; border: 1px solid #14576a; background: var(--accent); color: white; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+  body { font: 14px/1.5 Arial, Helvetica, sans-serif; margin: 0; color: var(--ink); background: var(--paper); }
+  button { font: inherit; border-radius: 2px; cursor: pointer; white-space: nowrap; }
   button:disabled { opacity: .55; cursor: wait; }
-  #toggle { background: #fff; color: var(--accent); border-color: #b9c2cf; margin-left: auto; }
 
-  /* --- report (the hero, full width) --- */
-  #report { max-width: 860px; margin: 0 auto; padding: 1.5rem 2rem 6rem; }
+  #bar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    gap: .55rem;
+    align-items: center;
+    min-height: var(--bar-h);
+    padding: .55rem 1rem;
+    border-bottom: 3px solid var(--accent);
+    background: rgba(255,255,255,.96);
+    backdrop-filter: blur(12px);
+  }
+  #brand {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    margin-right: .25rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  #brand::after {
+    content: "  \2022  Live report";
+    color: var(--muted);
+    font-weight: 700;
+    letter-spacing: .06em;
+  }
+  #q {
+    flex: 1;
+    min-width: 220px;
+    max-width: 840px;
+    font: inherit;
+    padding: .5rem .65rem;
+    border: 1px solid #aeb8bd;
+    border-radius: 2px;
+    background: var(--field);
+  }
+  #run {
+    padding: .5rem .9rem;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: white;
+  }
+  .ghost {
+    padding: .5rem .7rem;
+    border: 1px solid #aeb8bd;
+    background: #fff;
+    color: var(--accent);
+  }
+  #toggle { margin-left: auto; }
 
-  #answer-slot { background: #eef6f8; border: 1px solid #cfe3e8; border-left: 4px solid var(--accent); border-radius: 6px; padding: .85rem 1.1rem; margin: 0 0 1.6rem; }
-  .answer-label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: .3rem; }
+  #report {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 1.35rem 2.4rem 6rem;
+  }
+
+  #status {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: .75rem;
+    align-items: center;
+    min-height: 40px;
+    padding: .45rem 0 .65rem;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+  }
+  #status[hidden] { display: none; }
+  #status.running { border-color: var(--accent); }
+  #status.done { color: var(--ok); }
+  #status.error { color: var(--danger); }
+  #pulse {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: var(--muted);
+  }
+  #status.running #pulse {
+    background: var(--accent);
+    box-shadow: 0 0 0 0 rgba(31,122,140,.4);
+    animation: pulse 1.4s ease-out infinite;
+  }
+  #status.done #pulse { background: var(--ok); }
+  #status.error #pulse { background: var(--danger); }
+  #status-text, #tool-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #tool-text { font-size: 12px; }
+  #progress {
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 3px;
+    overflow: hidden;
+    background: #e7ebed;
+    border-radius: 999px;
+  }
+  #progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width .25s ease;
+  }
+  @keyframes pulse {
+    70% { box-shadow: 0 0 0 8px rgba(31,122,140,0); }
+    100% { box-shadow: 0 0 0 0 rgba(31,122,140,0); }
+  }
+
+  #answer-slot {
+    background: #fff;
+    border-top: 2px solid var(--accent);
+    border-bottom: 1px solid var(--line);
+    padding: 1rem 0 1.15rem;
+    margin: 1.15rem 0 1.85rem;
+  }
+  #answer-slot[hidden] { display: none; }
+  .answer-label {
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 800;
+    margin-bottom: .45rem;
+  }
+  #answer-slot p { font-size: 17px; line-height: 1.45; margin: .35rem 0; }
   #answer-slot > :last-child { margin-bottom: 0; }
 
-  /* --- sections (U2) --- */
   summary { cursor: pointer; list-style: none; }
   summary::-webkit-details-marker { display: none; }
   .section > summary::before, .supporting > summary::before { content: "\25B8\00a0"; color: var(--muted); }
   .section[open] > summary::before, .supporting[open] > summary::before { content: "\25BE\00a0"; }
-  .section > summary { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 .5rem; padding-bottom: .25rem; border-bottom: 1px solid var(--line); }
-  #sections > .section:first-child > summary { margin-top: .2rem; }
+  .section > summary {
+    font-size: 1.22rem;
+    font-weight: 800;
+    margin: 1.8rem 0 .65rem;
+    padding: .35rem 0 .45rem;
+    border-top: 2px solid var(--rule);
+    border-bottom: 1px solid var(--line);
+  }
+  #sections > .section:first-child > summary { margin-top: .35rem; }
 
-  /* --- supporting disclosure (U3) --- */
-  .supporting { margin: .5rem 0 .3rem; }
+  .supporting { margin: .75rem 0 .3rem; }
   .supporting[hidden] { display: none; }
-  .supporting > summary { color: var(--muted); font-size: 12.5px; }
-  .sup-body { padding-left: .7rem; border-left: 2px solid var(--line); margin-top: .45rem; }
-  .sup-body blockquote { background: #fafbfc; font-size: 13px; }
-  .sup-body figure { display: inline-block; margin: .5rem .6rem .2rem 0; vertical-align: top; }
+  .supporting > summary {
+    display: inline-flex;
+    align-items: center;
+    color: var(--muted);
+    font-size: 12.5px;
+    padding: .2rem 0;
+  }
+  .sup-body {
+    display: grid;
+    gap: .65rem;
+    padding: .55rem 0 0;
+    margin-top: .35rem;
+    border-top: 1px solid var(--line);
+  }
+  .sup-body .finding {
+    padding: .6rem 0;
+    border-top: 1px solid #e2e7ee;
+    background: #fff;
+  }
+  .sup-body blockquote {
+    background: transparent;
+    font-size: 13px;
+    margin: 0;
+  }
+  .sup-body figure {
+    display: inline-block;
+    margin: .1rem .6rem .2rem 0;
+    vertical-align: top;
+  }
   .sup-body figure img { max-width: 240px; }
 
-  /* --- findings --- */
-  blockquote { border-left: 3px solid var(--accent); margin: .8rem 0; padding: .25rem .9rem; color: #30353d; background: #f8fbfc; }
-  blockquote p { margin: .3rem 0; }
-  blockquote .cite { display: block; color: var(--accent); font-size: 12px; margin-top: .35rem; }
+  .primary { display: grid; gap: .85rem; }
+  .finding { scroll-margin-top: calc(var(--bar-h) + 16px); }
+  .primary-finding {
+    padding: .8rem 0 1rem;
+    border-top: 1px solid var(--line);
+    background: #fff;
+  }
+  .primary-finding figure { margin-top: .15rem; }
+  blockquote {
+    margin: 0;
+    padding: .15rem 0;
+    color: var(--ink);
+    background: #fff;
+  }
+  blockquote p { margin: .35rem 0; }
+  blockquote .cite {
+    display: block;
+    color: var(--accent);
+    font-size: 12px;
+    margin-top: .4rem;
+  }
   figure { margin: 1rem 0; }
-  figure img { max-width: 100%; border: 1px solid var(--line); }
-  figcaption { font-size: 12px; color: var(--muted); margin-top: .35rem; }
+  figure img {
+    display: block;
+    max-width: 100%;
+    border: 1px solid #b7bec3;
+    background: #fff;
+  }
+  figcaption { font-size: 12px; color: var(--muted); margin-top: .4rem; }
+  .ai-label {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #6b5b00;
+    background: #fff6d6;
+    border: 1px solid #e6d68a;
+    border-radius: 3px;
+    padding: 0 4px;
+    margin-right: .35rem;
+  }
+  .finding-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    align-items: center;
+    margin-top: .5rem;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    padding: .12rem .35rem;
+    border: 1px solid #b8c5ca;
+    border-radius: 2px;
+    background: #fff;
+    color: var(--accent);
+    font-size: 11px;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  button.chip { cursor: pointer; }
+  .chip.missing { color: var(--warn); border-color: #f1c79f; }
 
-  /* --- trace drawer (U1) --- */
-  #trace { position: fixed; top: var(--bar-h); right: 0; bottom: 0; width: min(420px, 100%); background: var(--soft); border-left: 1px solid var(--line); padding: .9rem; overflow: auto; font-size: 12px; transform: translateX(100%); transition: transform .18s ease; box-shadow: -8px 0 24px rgba(0,0,0,.07); z-index: 20; }
+  #trace {
+    position: fixed;
+    top: var(--bar-h);
+    right: 0;
+    bottom: 0;
+    width: min(440px, 100%);
+    background: #f4f5f2;
+    border-top: 3px solid var(--accent);
+    overflow: hidden;
+    font-size: 12px;
+    transform: translateX(100%);
+    transition: transform .18s ease;
+    box-shadow: -8px 0 24px rgba(0,0,0,.08);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+  }
   body.trace-open #trace { transform: translateX(0); }
-  .ev { border-left: 3px solid #b6beca; padding: .35rem .6rem; margin: .45rem 0; background: #fff; overflow-wrap: anywhere; }
+  #trace-cost {
+    flex: 0 0 auto;
+    padding: .7rem .85rem;
+    background: #1b2227;
+    color: #e9ecef;
+    border-bottom: 2px solid var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  #trace-cost .cost-big {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: .01em;
+  }
+  #trace-cost .cost-big.estimate::after {
+    content: " est";
+    font-size: 10px;
+    font-weight: 600;
+    color: #8a949c;
+    text-transform: uppercase;
+  }
+  #trace-cost .cost-meta {
+    margin-top: .25rem;
+    color: #aab2b8;
+    font-size: 11px;
+    display: flex;
+    gap: .9rem;
+    flex-wrap: wrap;
+  }
+  #trace-cost .cost-meta b { color: #e9ecef; font-weight: 600; }
+  #trace-list { flex: 1 1 auto; overflow: auto; padding: .85rem; }
+  .ev.usage { color: #5d6670; }
+  .ev.usage .ev-cost { color: var(--accent); font-weight: 600; }
+  .ev .ev-latency { float: right; color: #94a0a8; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .ev {
+    border-top: 1px solid var(--line);
+    padding: .55rem 0;
+    margin: 0;
+    background: #fff;
+    overflow-wrap: anywhere;
+  }
   .ev :first-child { margin-top: 0; }
   .ev :last-child { margin-bottom: 0; }
+  .ev-head {
+    display: flex;
+    justify-content: space-between;
+    gap: .5rem;
+    color: var(--muted);
+    font-size: 11px;
+    margin-bottom: .2rem;
+  }
   .tool_call { border-color: var(--accent); }
-  .tool_result { border-color: var(--ok); }
+  .tool_result { border-color: #9eb3a6; }
   .thought { color: var(--muted); background: transparent; }
-  .error { border-color: #b42318; color: #b42318; }
+  .done { border-color: var(--ok); }
+  .error { border-color: var(--danger); color: var(--danger); }
   .ev.flash { animation: flash 1.2s ease; }
-  @keyframes flash { from { background: #fff3cd; } to { background: #fff; } }
+  @keyframes flash {
+    0% { background: #fff4cf; }
+    100% { background: #fff; }
+  }
 
-  @media (max-width: 760px) {
+  @media (max-width: 820px) {
+    #bar { flex-wrap: wrap; }
+    #brand { width: 100%; }
+    #q { min-width: 0; flex-basis: 100%; }
+    #toggle { margin-left: 0; }
     #report { padding: 1rem 1rem 5rem; }
+    #status { grid-template-columns: auto minmax(0, 1fr); }
+    #tool-text { grid-column: 2; }
     #trace { width: 100%; }
+    .primary-finding { padding: .65rem; }
   }
 </style>
 
 <div id="bar">
+  <div id="brand">Eye on the Monster</div>
   <input id="q" placeholder="Ask about the corpus">
   <button id="run" onclick="go()">Run</button>
-  <button id="toggle" aria-expanded="false">Agent trace &#9656;</button>
+  <button id="copy-md" class="ghost" disabled>Copy MD</button>
+  <button id="download-pdf" class="ghost" disabled>Download PDF</button>
+  <button id="toggle" class="ghost" aria-expanded="false">Agent trace &#9656;</button>
 </div>
 
-<div id="report"></div>
-<div id="trace"></div>
+<main id="report"></main>
+<aside id="trace" aria-label="Agent trace">
+  <div id="trace-cost">
+    <div class="cost-big" id="cost-big">$0.0000</div>
+    <div class="cost-meta">
+      <span><b id="cost-turns">0</b> turns</span>
+      <span><b id="cost-tokens">0</b> tokens</span>
+      <span><b id="cost-elapsed">0.0s</b> elapsed</span>
+    </div>
+  </div>
+  <div id="trace-list"></div>
+</aside>
 
 <script>
 const $ = id => document.getElementById(id);
-let current = null;
+const esc = text => String(text ?? '').replace(/[&<>"']/g, ch => (
+  { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]
+));
 
-/* ---------- trace drawer (U1) ---------- */
+let current = null;
+let answerSlot, sectionsEl, statusEl, currentSection;
+let sectionStates = [];
+let answerText = '';
+let reportEvents = [];
+let traceEvents = [];
+let costTurns = 0, costTokens = 0, costElapsedTimer = null, runStartMs = 0;
+
+function fmtCost(usd) {
+  if (!usd) return '$0.0000';
+  return usd < 1 ? '$' + usd.toFixed(4) : '$' + usd.toFixed(2);
+}
+function fmtNum(n) { return Number(n || 0).toLocaleString(); }
+function fmtMs(ms) {
+  if (ms == null) return '';
+  return ms >= 1000 ? (ms / 1000).toFixed(1) + 's' : Math.round(ms) + 'ms';
+}
+
+function resetCostPanel() {
+  costTurns = 0; costTokens = 0; runStartMs = Date.now();
+  $('cost-big').textContent = '$0.0000';
+  $('cost-big').classList.add('estimate');
+  $('cost-turns').textContent = '0';
+  $('cost-tokens').textContent = '0';
+  $('cost-elapsed').textContent = '0.0s';
+  if (costElapsedTimer) clearInterval(costElapsedTimer);
+  costElapsedTimer = setInterval(() => {
+    $('cost-elapsed').textContent = ((Date.now() - runStartMs) / 1000).toFixed(1) + 's';
+  }, 100);
+}
+
+function updateCostPanel(ev) {
+  if (ev.type === 'usage') {
+    costTurns += 1;
+    costTokens += (ev.input_tokens || 0) + (ev.output_tokens || 0)
+      + (ev.cache_read_tokens || 0) + (ev.cache_write_tokens || 0);
+    $('cost-big').textContent = fmtCost(ev.cost_total);
+    $('cost-big').classList.add('estimate'); // live figure is an estimate until the run finishes
+    $('cost-turns').textContent = fmtNum(costTurns);
+    $('cost-tokens').textContent = fmtNum(costTokens);
+  }
+  if (ev.type === 'done') {
+    if (costElapsedTimer) { clearInterval(costElapsedTimer); costElapsedTimer = null; }
+    if (ev.cost_total != null) $('cost-big').textContent = fmtCost(ev.cost_total);
+    $('cost-big').classList.remove('estimate'); // reconciled to the SDK's authoritative total
+    if (ev.num_turns != null) $('cost-turns').textContent = fmtNum(ev.num_turns);
+    if (ev.duration_ms != null) $('cost-elapsed').textContent = fmtMs(ev.duration_ms);
+  }
+}
+let currentTool = '';
+let coverage = null;
+let stick = true;
+let runFinished = false;
+
+function syncBarHeight() {
+  document.documentElement.style.setProperty('--bar-h', $('bar').offsetHeight + 'px');
+}
+window.addEventListener('resize', syncBarHeight);
+syncBarHeight();
+
 function setTrace(open) {
   document.body.classList.toggle('trace-open', open);
   $('toggle').innerHTML = 'Agent trace ' + (open ? '▾' : '▸');
-  $('toggle').setAttribute('aria-expanded', open);
+  $('toggle').setAttribute('aria-expanded', String(open));
   localStorage.setItem('traceOpen', open ? '1' : '0');
+  syncBarHeight();
 }
 $('toggle').onclick = () => setTrace(!document.body.classList.contains('trace-open'));
-setTrace(localStorage.getItem('traceOpen') === '1');  // collapsed by default
-
-/* ---------- report structure (U2 / U3) ---------- */
-let answerSlot, sectionsEl, currentSection;
+setTrace(localStorage.getItem('traceOpen') === '1');
 
 function resetReport() {
   $('report').innerHTML = '';
+  statusEl = document.createElement('div');
+  statusEl.id = 'status';
+  statusEl.hidden = true;
+  statusEl.innerHTML = `
+    <div id="pulse"></div>
+    <div id="status-text">Idle</div>
+    <div id="tool-text"></div>
+    <div id="progress"><div id="progress-bar"></div></div>
+  `;
   answerSlot = document.createElement('div');
   answerSlot.id = 'answer-slot';
   answerSlot.hidden = true;
   sectionsEl = document.createElement('div');
   sectionsEl.id = 'sections';
-  $('report').append(answerSlot, sectionsEl);
+  $('report').append(statusEl, answerSlot, sectionsEl);
   currentSection = null;
+  sectionStates = [];
+  answerText = '';
+  reportEvents = [];
+  coverage = null;
+  setExportEnabled(false);
+}
+
+function setExportEnabled(enabled) {
+  $('copy-md').disabled = !enabled;
+  $('download-pdf').disabled = !enabled;
+}
+
+function setStatus(state, text, toolText = '') {
+  statusEl.hidden = false;
+  statusEl.className = state || '';
+  $('status-text').textContent = text;
+  $('tool-text').textContent = toolText;
+}
+
+function updateProgressFromSummary(summary) {
+  const m = String(summary || '').match(/(\d+)\/(\d+)\s+inspected/i);
+  if (!m) return;
+  coverage = { inspected: Number(m[1]), total: Number(m[2]) };
+  const pct = coverage.total ? Math.round((coverage.inspected / coverage.total) * 100) : 0;
+  $('progress-bar').style.width = pct + '%';
+  setStatus('running', `Inspected ${coverage.inspected}/${coverage.total} issues`, currentTool ? `Current tool: ${currentTool}` : '');
 }
 
 function newSection(title) {
@@ -123,11 +517,14 @@ function newSection(title) {
   sec.append(sum, primary, sup);
   sectionsEl.appendChild(sec);
 
+  const state = { title: title || 'Findings', primary: [], supporting: [], el: sec };
+  sec._state = state;
   sec._primary = primary;
   sec._sup = sup;
   sec._supBody = supBody;
   sec._supSummary = supSum;
   sec._supCount = 0;
+  sectionStates.push(state);
   return sec;
 }
 
@@ -136,94 +533,294 @@ function ensureSection() {
   return currentSection;
 }
 
+function citeText(ev) {
+  return `${ev.title || ''}${ev.issue_date ? ', ' + ev.issue_date : ''} [p. ${ev.page}]`.trim();
+}
+
 function findingHtml(ev) {
   if (ev.kind === 'quote') {
-    const cite = `${ev.title || ''}${ev.issue_date ? ', ' + ev.issue_date : ''} [p. ${ev.page}]`;
-    return `<blockquote>${marked.parse(ev.text || '')}<span class="cite">${cite}</span></blockquote>`;
+    return `<blockquote>${marked.parse(ev.text || '')}<span class="cite">${esc(citeText(ev))}</span></blockquote>`;
   }
   if (ev.kind === 'chart') {
-    return `<figure><img src="/page_image/${ev.page}" loading="lazy"><figcaption>${ev.caption || ''} [p. ${ev.page}]</figcaption></figure>`;
+    const caption = `${ev.caption || 'Chart'} [p. ${ev.page}]`;
+    return `<figure><img src="/page_image/${encodeURIComponent(ev.page)}" loading="lazy" alt="Page ${esc(ev.page)} chart"><figcaption><span class="ai-label">AI chart description</span> ${esc(caption)}</figcaption></figure>`;
   }
-  return marked.parse(ev.text || '');  // narrative
+  return marked.parse(ev.text || '');
+}
+
+function addProvenanceChip(node, src) {
+  if (!src) return;
+  const meta = document.createElement('div');
+  meta.className = 'finding-meta';
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'chip';
+  chip.textContent = src;
+  chip.title = 'Open source trace event';
+  chip.onclick = () => openTraceForSource(src, chip);
+  meta.appendChild(chip);
+  node.appendChild(meta);
 }
 
 function addFinding(ev) {
   const sec = ensureSection();
-  const node = document.createElement('div');
-  node.innerHTML = findingHtml(ev);
-  if (ev.src) node.dataset.src = ev.src;  // provenance hook (U4)
-
   const supporting = (ev.kind === 'quote' || ev.kind === 'chart') && ev.relevance === 'supporting';
+  const node = document.createElement('article');
+  node.className = 'finding ' + (supporting ? 'supporting-finding' : 'primary-finding');
+  node.innerHTML = findingHtml(ev);
+  if (ev.src) node.dataset.src = ev.src;
+  addProvenanceChip(node, ev.src);
+
   if (supporting) {
     sec._supBody.appendChild(node);
     sec._supCount++;
+    sec._state.supporting.push(ev);
     sec._supSummary.textContent = `${sec._supCount} supporting finding${sec._supCount === 1 ? '' : 's'}`;
     sec._sup.hidden = false;
   } else {
     sec._primary.appendChild(node);
+    sec._state.primary.push(ev);
   }
+  reportEvents.push(ev);
+  setExportEnabled(true);
   followIfSticking();
 }
 
 function showAnswer(ev) {
-  answerSlot.innerHTML = '<div class="answer-label">Answer</div>' + marked.parse(ev.text || '');
+  answerText = ev.text || '';
+  answerSlot.innerHTML = '<div class="answer-label">Answer</div>' + marked.parse(answerText);
   answerSlot.hidden = false;
+  reportEvents.push(ev);
+  setExportEnabled(true);
   stick = false;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function onReport(ev) {
+  setExportEnabled(true);
   if (ev.kind === 'answer') return showAnswer(ev);
-  if (ev.kind === 'heading') { currentSection = newSection(ev.text || ''); return; }
+  if (ev.kind === 'heading') {
+    currentSection = newSection(ev.text || '');
+    reportEvents.push(ev);
+    return;
+  }
   addFinding(ev);
 }
 
-/* ---------- trace lane ---------- */
+function normalizeToolName(name) {
+  return String(name || '').replace(/^mcp__eom__/, '');
+}
+
 function traceMarkdown(ev) {
-  if (ev.type === 'tool_call') return `**-> ${ev.name}** \`${JSON.stringify(ev.args || {})}\``;
-  if (ev.type === 'tool_result') return `**<- ${ev.name}** - ${ev.summary || ''}`;
+  const name = normalizeToolName(ev.name);
+  if (ev.type === 'tool_call') return `**→ ${name}** \`${JSON.stringify(ev.args || {})}\``;
+  if (ev.type === 'tool_result') return `**← ${name}** - ${ev.summary || ''}`;
+  if (ev.type === 'usage') {
+    const ctx = ev.context_tokens != null ? ev.context_tokens
+      : (ev.input_tokens || 0) + (ev.cache_read_tokens || 0) + (ev.cache_write_tokens || 0);
+    const io = `${fmtNum(ctx)} ctx / ${fmtNum(ev.output_tokens)} out`;
+    const cache = (ev.cache_read_tokens || ev.cache_write_tokens)
+      ? ` · cache ${fmtNum(ev.cache_read_tokens)}r/${fmtNum(ev.cache_write_tokens)}w` : '';
+    return `LLM turn — ${io}${cache} · <span class="ev-cost">+${fmtCost(ev.turn_cost)}</span> (Σ ${fmtCost(ev.cost_total)})`;
+  }
   if (ev.type === 'error') return `**Error:** ${ev.text || ''}`;
+  if (ev.type === 'done') return ev.is_error ? '**Run ended with errors.**' : '**Run complete.**';
   return ev.text || '';
 }
 
+function sourceParts(src) {
+  const idx = String(src || '').indexOf(':');
+  if (idx < 0) return { name: normalizeToolName(src), detail: '' };
+  return { name: normalizeToolName(src.slice(0, idx)), detail: src.slice(idx + 1) };
+}
+
+function findTraceForSource(src) {
+  const { name, detail } = sourceParts(src);
+  const candidates = traceEvents.filter(ev => normalizeToolName(ev.name) === name);
+  if (!candidates.length) return null;
+  const tokens = detail.toLowerCase().replace(/['"]/g, '').split(/[,\s]+/).filter(t => t.length > 2);
+  if (!tokens.length) return candidates[0];
+  for (const ev of candidates) {
+    const hay = JSON.stringify(ev.args || {}).toLowerCase() + ' ' + String(ev.summary || ev.text || '').toLowerCase();
+    if (tokens.some(t => hay.includes(t))) return ev;
+  }
+  return candidates[0];
+}
+
+function openTraceForSource(src, chip) {
+  const ev = findTraceForSource(src);
+  setTrace(true);
+  requestAnimationFrame(() => {
+    if (!ev || !ev.el) {
+      chip.classList.add('missing');
+      chip.title = 'No matching trace event found yet';
+      return;
+    }
+    chip.classList.remove('missing');
+    ev.el.scrollIntoView({ block: 'center' });
+    ev.el.classList.remove('flash');
+    void ev.el.offsetWidth;
+    ev.el.classList.add('flash');
+  });
+}
+
 function onTrace(ev) {
+  updateCostPanel(ev);
   const md = traceMarkdown(ev);
   if (md) {
     const d = document.createElement('div');
     d.className = 'ev ' + (ev.type || 'trace');
-    if (ev.id != null) d.id = 'trace-ev-' + ev.id;  // DOM anchor for U4
-    d.innerHTML = marked.parse(md);
-    $('trace').appendChild(d);
-    $('trace').scrollTop = $('trace').scrollHeight;  // own scroll, even when hidden
+    if (ev.id != null) d.id = 'trace-ev-' + ev.id;
+    const latency = ev.latency_ms != null ? `<span class="ev-latency">${fmtMs(ev.latency_ms)}</span>` : '';
+    const head = `<div class="ev-head">${latency}<span>#${esc(ev.id ?? '')}</span><span>${esc(normalizeToolName(ev.name || ev.type || 'trace'))}</span></div>`;
+    d.innerHTML = head + marked.parse(md);
+    $('trace-list').appendChild(d);
+    ev.el = d;
+    traceEvents.push(ev);
+    $('trace-list').scrollTop = $('trace-list').scrollHeight;
   }
-  if (ev.type === 'done') $('run').disabled = false;
+  if (ev.type === 'tool_call') {
+    currentTool = normalizeToolName(ev.name);
+    setStatus('running', coverage ? `Inspected ${coverage.inspected}/${coverage.total} issues` : 'Running', `Current tool: ${currentTool}`);
+  }
+  if (ev.type === 'tool_result') {
+    updateProgressFromSummary(ev.summary);
+  }
+  if (ev.type === 'done') {
+    $('run').disabled = false;
+    const label = ev.is_error ? 'Run ended with errors' : 'Run complete';
+    setStatus(ev.is_error ? 'error' : 'done', label, coverage ? `Inspected ${coverage.inspected}/${coverage.total} issues` : '');
+    if (!ev.is_error && (!coverage || coverage.total === 0 || coverage.inspected >= coverage.total)) {
+      $('progress-bar').style.width = '100%';
+    }
+  }
+  if (ev.type === 'error') {
+    setStatus('error', ev.text || 'Error', '');
+  }
 }
 
-/* ---------- page auto-follow ---------- */
-let stick = true;
 window.addEventListener('scroll', () => {
   stick = (window.innerHeight + window.scrollY) >= (document.documentElement.scrollHeight - 80);
 });
+
 function followIfSticking() {
   if (stick) window.scrollTo({ top: document.documentElement.scrollHeight });
 }
 
-/* ---------- run ---------- */
 function go() {
   if (current) current.close();
   resetReport();
-  $('trace').innerHTML = '';
+  $('trace-list').innerHTML = '';
+  resetCostPanel();
+  traceEvents = [];
+  currentTool = '';
+  runFinished = false;
   $('run').disabled = true;
   stick = true;
+  setStatus('running', 'Starting', '');
   current = new EventSource('/run?q=' + encodeURIComponent($('q').value));
   current.onmessage = e => {
     const ev = JSON.parse(e.data);
     if (ev.lane === 'report') onReport(ev);
     else if (ev.lane === 'trace') onTrace(ev);
   };
-  current.addEventListener('done', () => { $('run').disabled = false; current.close(); });
-  current.onerror = () => { $('run').disabled = false; };
+  current.addEventListener('done', () => {
+    runFinished = true;
+    $('run').disabled = false;
+    if (current) current.close();
+  });
+  current.onerror = () => {
+    if (runFinished) return;
+    $('run').disabled = false;
+    setStatus('error', 'Stream disconnected', '');
+    if (current) current.close();
+  };
 }
+
+function quoteMarkdown(text) {
+  return String(text || '').trim().split('\n').map(line => `> ${line}`).join('\n');
+}
+
+function eventMarkdown(ev) {
+  if (ev.kind === 'quote') return `${quoteMarkdown(ev.text)}\n>\n> ${citeText(ev)}`;
+  if (ev.kind === 'chart') return `![Chart p. ${ev.page}](/page_image/${ev.page})\n\n*AI chart description: ${ev.caption || 'Chart'} [p. ${ev.page}]*`;
+  if (ev.kind === 'narrative') return ev.text || '';
+  return '';
+}
+
+function buildMarkdown() {
+  const lines = [`# Eye on the Monster Report`, '', `Query: ${$('q').value || ''}`, ''];
+  if (answerText) lines.push('## Answer', '', answerText.trim(), '');
+  for (const sec of sectionStates) {
+    lines.push(`## ${sec.title}`, '');
+    for (const ev of sec.primary) lines.push(eventMarkdown(ev), '');
+    if (sec.supporting.length) {
+      lines.push('### Supporting Findings', '');
+      for (const ev of sec.supporting) lines.push(eventMarkdown(ev), '');
+    }
+  }
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+}
+
+function cleanEvent(ev) {
+  const out = {};
+  for (const key of ['kind', 'text', 'page', 'issue_date', 'title', 'caption', 'relevance', 'src']) {
+    if (ev[key] != null) out[key] = ev[key];
+  }
+  return out;
+}
+
+function buildPdfPayload() {
+  return {
+    query: $('q').value || '',
+    answer: answerText || '',
+    sections: sectionStates.map(sec => ({
+      title: sec.title,
+      primary: sec.primary.map(cleanEvent),
+      supporting: sec.supporting.map(cleanEvent),
+    })),
+  };
+}
+
+$('copy-md').onclick = async () => {
+  const md = buildMarkdown();
+  await navigator.clipboard.writeText(md);
+  $('copy-md').textContent = 'Copied';
+  setTimeout(() => { $('copy-md').textContent = 'Copy MD'; }, 1100);
+};
+
+$('download-pdf').onclick = async () => {
+  const button = $('download-pdf');
+  const previous = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Building PDF';
+  try {
+    const resp = await fetch('/export_pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildPdfPayload()),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'eye-on-the-monster-report.pdf';
+    document.body.appendChild(a);
+    a.click();
+    // Defer cleanup: revoking the object URL or removing the anchor on the same tick as click()
+    // can cancel the download in Chrome before it starts. Let the download commit first.
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 1000);
+  } catch (err) {
+    console.error(err);
+    button.textContent = 'PDF failed';
+    setTimeout(() => { button.textContent = previous; }, 1400);
+  } finally {
+    button.disabled = false;
+    if (button.textContent === 'Building PDF') button.textContent = previous;
+  }
+};
+
 $('q').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
 resetReport();
 </script>
