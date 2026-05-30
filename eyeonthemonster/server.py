@@ -56,9 +56,9 @@ def index() -> HTMLResponse:
 
 
 @app.get("/run")
-async def run(q: str) -> StreamingResponse:
+async def run(q: str, model: str | None = None) -> StreamingResponse:
     async def stream():
-        async for event in run_agent(q):
+        async for event in run_agent(q, model=model):
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         yield "event: done\ndata: {}\n\n"
 

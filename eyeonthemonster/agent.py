@@ -34,26 +34,56 @@ INDEX_DIR = ROOT / "index"
 # parent env (no key) and falls back to the Claude subscription/OAuth login instead.
 load_dotenv(ROOT / ".env")
 MODEL_NAME = "sentence-transformers/static-retrieval-mrl-en-v1"
-# AGENT_MODEL = "claude-haiku-4-5-20251001"
-AGENT_MODEL="claude-sonnet-4-6"
-# the SDK's ResultMessage.total_cost_usd is the authoritative figure we reconcile to at the
-# end. Cache write = 1.25x input, cache read = 0.1x input (standard Anthropic multipliers).
-TOKEN_PRICE = {
-    "input": 3.00 / 1_000_000,
-    "output": 15.00 / 1_000_000,
-    "cache_write": 1.25 / 1_000_000,
-    "cache_read": 0.10 / 1_000_000,
+# Selectable agent models. Keys are the short labels the UI dropdown uses; values are the API
+# model ids passed to ClaudeAgentOptions. `run_agent(model=...)` accepts either the label or the
+# full id (case-insensitive on the label). Default = sonnet (the post-2026-05-30 choice).
+AGENT_MODELS: dict[str, str] = {
+    "haiku": "claude-haiku-4-5-20251001",
+    "sonnet": "claude-sonnet-4-6",
+    "opus": "claude-opus-4-8",
 }
+AGENT_MODEL = AGENT_MODELS["sonnet"]
 
 
-def usage_cost(usage: dict[str, Any] | None) -> float:
+def _prices(input_per_m: float, output_per_m: float) -> dict[str, float]:
+    # Standard Anthropic multipliers: cache write = 1.25x input, cache read = 0.10x input.
+    return {
+        "input": input_per_m / 1_000_000,
+        "output": output_per_m / 1_000_000,
+        "cache_write": input_per_m * 1.25 / 1_000_000,
+        "cache_read": input_per_m * 0.10 / 1_000_000,
+    }
+
+
+# Per-model token prices used ONLY for the live per-turn cost estimate emitted to the UI; the
+# SDK's ResultMessage.total_cost_usd is the authoritative figure we reconcile to on `done`.
+TOKEN_PRICES: dict[str, dict[str, float]] = {
+    "claude-haiku-4-5-20251001": _prices(1.00, 5.00),
+    "claude-sonnet-4-6": _prices(3.00, 15.00),
+    "claude-opus-4-8": _prices(15.00, 75.00),
+}
+DEFAULT_PRICES = TOKEN_PRICES[AGENT_MODEL]
+
+
+def resolve_model(value: str | None) -> str:
+    # Accept either a short label ("haiku"/"sonnet"/"opus") or a full API model id.
+    if not value:
+        return AGENT_MODEL
+    s = str(value).strip()
+    if not s:
+        return AGENT_MODEL
+    return AGENT_MODELS.get(s.lower(), s)
+
+
+def usage_cost(usage: dict[str, Any] | None, model: str | None = None) -> float:
     if not usage:
         return 0.0
+    prices = TOKEN_PRICES.get(model or "", DEFAULT_PRICES)
     return (
-        usage.get("input_tokens", 0) * TOKEN_PRICE["input"]
-        + usage.get("output_tokens", 0) * TOKEN_PRICE["output"]
-        + usage.get("cache_creation_input_tokens", 0) * TOKEN_PRICE["cache_write"]
-        + usage.get("cache_read_input_tokens", 0) * TOKEN_PRICE["cache_read"]
+        usage.get("input_tokens", 0) * prices["input"]
+        + usage.get("output_tokens", 0) * prices["output"]
+        + usage.get("cache_creation_input_tokens", 0) * prices["cache_write"]
+        + usage.get("cache_read_input_tokens", 0) * prices["cache_read"]
     )
 SYSTEM = """You are the research agent for "Eye on the Market" — 20 years (~5,100 pages) of \
 Michael Cembalest's J.P. Morgan letters, indexed page-by-page. The user is usually the author. \
@@ -1073,16 +1103,22 @@ async def _only_eom(tool_name: str, input_data: dict, context):
     return PermissionResultDeny(message="Use only the eom search tools.", interrupt=False)
 
 
-options = ClaudeAgentOptions(
-    model=AGENT_MODEL,
-    system_prompt=SYSTEM,
-    mcp_servers={"eom": eom},
-    allowed_tools=[f"mcp__eom__{t.name}" for t in TOOLS],
-    disallowed_tools=["Bash", "Read", "Write", "Edit", "Glob", "Grep",
-                      "WebSearch", "WebFetch", "NotebookEdit"],
-    can_use_tool=_only_eom,
-    setting_sources=[],
-)
+def build_options(model: str | None = None) -> ClaudeAgentOptions:
+    # ClaudeAgentOptions is per-call so the UI can select the model at run time. Everything else
+    # (system prompt, tool surface, lockdown) is invariant across model choice.
+    return ClaudeAgentOptions(
+        model=resolve_model(model),
+        system_prompt=SYSTEM,
+        mcp_servers={"eom": eom},
+        allowed_tools=[f"mcp__eom__{t.name}" for t in TOOLS],
+        disallowed_tools=["Bash", "Read", "Write", "Edit", "Glob", "Grep",
+                          "WebSearch", "WebFetch", "NotebookEdit"],
+        can_use_tool=_only_eom,
+        setting_sources=[],
+    )
+
+
+options = build_options()  # default-model singleton kept for the __main__ smoke test
 
 
 def _agent_user_message(user_query: str) -> str:
@@ -1114,9 +1150,11 @@ summarized in enumerate.primary_pages unless you need to verify a quote or follo
 Finish with add_to_report(kind="answer", text=<compact coverage map>) — exactly once."""
 
 
-async def run_agent(prompt: str):
+async def run_agent(prompt: str, model: str | None = None):
     q: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     token = _emit_queue.set(q)
+    selected_model = resolve_model(model)
+    run_options = build_options(selected_model)
 
     run_start = time.perf_counter()
     cost_total = 0.0  # cumulative LIVE estimate from per-turn usage; reconciled to SDK total at done
@@ -1129,7 +1167,7 @@ async def run_agent(prompt: str):
             async def prompts():
                 yield {"type": "user", "message": {"role": "user", "content": _agent_user_message(prompt)}}
 
-            async for msg in query(prompt=prompts(), options=options):
+            async for msg in query(prompt=prompts(), options=run_options):
                 if isinstance(msg, AssistantMessage):
                     for block in msg.content:
                         if isinstance(block, TextBlock):
@@ -1144,7 +1182,9 @@ async def run_agent(prompt: str):
                         if msg.message_id is not None:
                             counted_msg_ids.add(msg.message_id)
                         now = time.perf_counter()
-                        turn_cost = usage_cost(msg.usage)
+                        # Prefer the model id the API actually billed (msg.model); fall back to
+                        # the requested model if that's missing on a particular message.
+                        turn_cost = usage_cost(msg.usage, msg.model or selected_model)
                         cost_total += turn_cost
                         fresh_in = msg.usage.get("input_tokens", 0)
                         cache_r = msg.usage.get("cache_read_input_tokens", 0)

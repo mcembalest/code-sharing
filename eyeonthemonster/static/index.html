@@ -72,6 +72,15 @@
     background: #fff;
     color: var(--accent);
   }
+  #model {
+    font: inherit;
+    padding: .45rem .55rem .45rem .6rem;
+    border: 1px solid #aeb8bd;
+    border-radius: 2px;
+    background: var(--field);
+    color: var(--ink);
+    cursor: pointer;
+  }
   #toggle { margin-left: auto; }
 
   #report {
@@ -411,6 +420,11 @@
 <div id="bar">
   <div id="brand">Eye on the Monster</div>
   <input id="q" placeholder="Ask about the corpus">
+  <select id="model" aria-label="Agent model">
+    <option value="haiku">Haiku 4.5</option>
+    <option value="sonnet" selected>Sonnet 4.6</option>
+    <option value="opus">Opus 4.8</option>
+  </select>
   <button id="run" onclick="go()">Run</button>
   <button id="download-pdf" class="ghost" disabled>Download PDF</button>
   <button id="toggle" class="ghost" aria-expanded="false">Agent trace &#9656;</button>
@@ -514,6 +528,18 @@ function setTrace(open) {
 }
 $('toggle').onclick = () => setTrace(!document.body.classList.contains('trace-open'));
 setTrace(localStorage.getItem('traceOpen') === '1');
+
+// Hydrate the model dropdown from the last user choice (persisted in go()).
+(function hydrateModel() {
+  const sel = $('model');
+  if (!sel) return;
+  let saved = '';
+  try { saved = localStorage.getItem('agentModel') || ''; } catch (_) {}
+  if (saved && [...sel.options].some(o => o.value === saved)) sel.value = saved;
+  sel.addEventListener('change', () => {
+    try { localStorage.setItem('agentModel', sel.value); } catch (_) {}
+  });
+})();
 
 function resetReport() {
   $('report').innerHTML = '';
@@ -903,7 +929,12 @@ function go() {
   $('run').disabled = true;
   stick = true;
   setStatus('running', 'Starting', '');
-  current = new EventSource('/run?q=' + encodeURIComponent($('q').value));
+  const modelChoice = $('model') ? $('model').value : '';
+  if (modelChoice) {
+    try { localStorage.setItem('agentModel', modelChoice); } catch (_) {}
+  }
+  const modelParam = modelChoice ? ('&model=' + encodeURIComponent(modelChoice)) : '';
+  current = new EventSource('/run?q=' + encodeURIComponent($('q').value) + modelParam);
   current.onmessage = e => {
     const ev = JSON.parse(e.data);
     if (ev.lane === 'report') onReport(ev);
