@@ -4,6 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from statistics import mean, median
 
+from clean_text import clean_content
+
 
 ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "_diag" / "pages_clean.jsonl"
@@ -98,7 +100,7 @@ def build_issues(pages: list[dict]) -> list[dict]:
             current = {
                 "issue_id": f"issue-{len(issues) + 1:04d}",
                 "issue_date": norm_date(page.get("issue_date")),
-                "title": title_from_page(page.get("content_text") or ""),
+                "title": title_from_page(clean_content(page.get("content_text") or "")),
                 "page_start": page_num,
             }
         prev = page

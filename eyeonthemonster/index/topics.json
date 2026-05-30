@@ -2290,12 +2290,12 @@
     {
       "id": "politics-policy",
       "label": "Politics, Elections & Public Policy",
-      "n_pages": 1721,
+      "n_pages": 1723,
       "granular": [
         {
           "id": "tariffs",
           "label": "tariffs",
-          "n_pages": 96
+          "n_pages": 97
         },
         {
           "id": "monetary-policy",
@@ -2348,13 +2348,13 @@
           "n_pages": 39
         },
         {
-          "id": "corporate-tax-rate",
-          "label": "corporate tax rate",
-          "n_pages": 37
-        },
-        {
           "id": "macroeconomics",
           "label": "macroeconomics",
+          "n_pages": 38
+        },
+        {
+          "id": "corporate-tax-rate",
+          "label": "corporate tax rate",
           "n_pages": 37
         },
         {
@@ -3613,6 +3613,11 @@
           "n_pages": 2
         },
         {
+          "id": "gpu-depreciation",
+          "label": "gpu depreciation",
+          "n_pages": 2
+        },
+        {
           "id": "gun-control-policy",
           "label": "gun control policy",
           "n_pages": 2
@@ -3975,11 +3980,6 @@
         {
           "id": "global-regulatory-bodies",
           "label": "global regulatory bodies",
-          "n_pages": 1
-        },
-        {
-          "id": "gpu-depreciation",
-          "label": "gpu depreciation",
           "n_pages": 1
         },
         {
@@ -4347,7 +4347,7 @@
     {
       "id": "fiscal-debt",
       "label": "Fiscal, Debt & Entitlements",
-      "n_pages": 1322,
+      "n_pages": 1325,
       "granular": [
         {
           "id": "sovereign-debt",
@@ -4357,7 +4357,7 @@
         {
           "id": "us-budget-deficit",
           "label": "us budget deficit",
-          "n_pages": 121
+          "n_pages": 122
         },
         {
           "id": "municipal-bonds",
@@ -4412,7 +4412,7 @@
         {
           "id": "debt-monetization",
           "label": "debt monetization",
-          "n_pages": 34
+          "n_pages": 35
         },
         {
           "id": "us-public-debt-to-gdp",
@@ -5000,6 +5000,11 @@
           "n_pages": 2
         },
         {
+          "id": "it-budget-allocation",
+          "label": "it budget allocation",
+          "n_pages": 2
+        },
+        {
           "id": "medicare-physician-payments",
           "label": "medicare physician payments",
           "n_pages": 2
@@ -5032,11 +5037,6 @@
         {
           "id": "social-security-early-claim-discount",
           "label": "social security early claim discount",
-          "n_pages": 2
-        },
-        {
-          "id": "spending-based-fiscal-consolidation",
-          "label": "spending-based fiscal consolidation",
           "n_pages": 2
         },
         {
@@ -5214,7 +5214,7 @@
     {
       "id": "markets-investing",
       "label": "Markets, Investing & Asset Allocation",
-      "n_pages": 2297,
+      "n_pages": 2294,
       "granular": [
         {
           "id": "equity-valuations",
@@ -5589,11 +5589,6 @@
         {
           "id": "business-cycle",
           "label": "business cycle",
-          "n_pages": 11
-        },
-        {
-          "id": "cloud-computing-valuations",
-          "label": "cloud computing valuations",
           "n_pages": 11
         },
         {
@@ -6139,6 +6134,11 @@
         {
           "id": "citigroup",
           "label": "citigroup",
+          "n_pages": 4
+        },
+        {
+          "id": "corporate-ai-investment",
+          "label": "corporate ai investment",
           "n_pages": 4
         },
         {
@@ -8328,7 +8328,7 @@
     {
       "id": "macro-growth-inflation",
       "label": "Macro Growth, Inflation & Rates",
-      "n_pages": 1211,
+      "n_pages": 1213,
       "granular": [
         {
           "id": "inflation",
@@ -8368,7 +8368,7 @@
         {
           "id": "labor-productivity",
           "label": "labor productivity",
-          "n_pages": 40
+          "n_pages": 43
         },
         {
           "id": "monetary-tightening",
@@ -8516,14 +8516,14 @@
           "n_pages": 11
         },
         {
-          "id": "office-vacancy-rates",
-          "label": "office vacancy rates",
+          "id": "nvidia-gpus",
+          "label": "nvidia gpus",
           "n_pages": 11
         },
         {
-          "id": "nvidia-gpus",
-          "label": "nvidia gpus",
-          "n_pages": 10
+          "id": "office-vacancy-rates",
+          "label": "office vacancy rates",
+          "n_pages": 11
         },
         {
           "id": "commercial-office-utilization",
@@ -8766,11 +8766,6 @@
           "n_pages": 4
         },
         {
-          "id": "software-developer-productivity",
-          "label": "software developer productivity",
-          "n_pages": 4
-        },
-        {
           "id": "us-economic-decoupling",
           "label": "us economic decoupling",
           "n_pages": 4
@@ -8848,6 +8843,11 @@
         {
           "id": "lagging-indicators",
           "label": "lagging indicators",
+          "n_pages": 3
+        },
+        {
+          "id": "llm-deployment-rates",
+          "label": "llm deployment rates",
           "n_pages": 3
         },
         {
@@ -9345,7 +9345,7 @@
     {
       "id": "labor-consumer-housing",
       "label": "Labor, Consumers & Housing",
-      "n_pages": 959,
+      "n_pages": 965,
       "granular": [
         {
           "id": "eurozone-employment",
@@ -9368,13 +9368,18 @@
           "n_pages": 45
         },
         {
-          "id": "labor-costs",
-          "label": "labor costs",
-          "n_pages": 31
-        },
-        {
           "id": "labor-force-participation",
           "label": "labor force participation",
+          "n_pages": 33
+        },
+        {
+          "id": "early-retirement",
+          "label": "early retirement",
+          "n_pages": 32
+        },
+        {
+          "id": "labor-costs",
+          "label": "labor costs",
           "n_pages": 31
         },
         {
@@ -9393,24 +9398,19 @@
           "n_pages": 29
         },
         {
-          "id": "early-retirement",
-          "label": "early retirement",
-          "n_pages": 29
-        },
-        {
           "id": "housing-starts",
           "label": "housing starts",
           "n_pages": 25
         },
         {
-          "id": "labor-compensation-share",
-          "label": "labor compensation share",
+          "id": "demographics",
+          "label": "demographics",
           "n_pages": 24
         },
         {
-          "id": "demographics",
-          "label": "demographics",
-          "n_pages": 23
+          "id": "labor-compensation-share",
+          "label": "labor compensation share",
+          "n_pages": 24
         },
         {
           "id": "labor-shortages",
@@ -9463,6 +9463,11 @@
           "n_pages": 13
         },
         {
+          "id": "retirement-savings",
+          "label": "retirement savings",
+          "n_pages": 12
+        },
+        {
           "id": "retirement-wealth-depletion",
           "label": "retirement wealth depletion",
           "n_pages": 12
@@ -9486,11 +9491,6 @@
           "id": "wage-convergence",
           "label": "wage convergence",
           "n_pages": 10
-        },
-        {
-          "id": "delayed-retirement-savings",
-          "label": "delayed retirement savings",
-          "n_pages": 9
         },
         {
           "id": "demographic-headwinds",
@@ -9773,11 +9773,6 @@
           "n_pages": 3
         },
         {
-          "id": "middle-east-demographics",
-          "label": "middle east demographics",
-          "n_pages": 3
-        },
-        {
           "id": "multifamily-housing-supply",
           "label": "multifamily housing supply",
           "n_pages": 3
@@ -9960,6 +9955,11 @@
         {
           "id": "shia-sunni-distribution",
           "label": "shia-sunni distribution",
+          "n_pages": 2
+        },
+        {
+          "id": "software-developer-employment-share",
+          "label": "software developer employment share",
           "n_pages": 2
         },
         {
@@ -10247,7 +10247,7 @@
     {
       "id": "healthcare-pandemic",
       "label": "Healthcare, Biotech & Pandemic",
-      "n_pages": 374,
+      "n_pages": 375,
       "granular": [
         {
           "id": "covid-19-variants",
@@ -10312,7 +10312,7 @@
         {
           "id": "industry-consolidation",
           "label": "industry consolidation",
-          "n_pages": 15
+          "n_pages": 16
         },
         {
           "id": "lockdown-policies",
@@ -10884,7 +10884,7 @@
     {
       "id": "technology-innovation",
       "label": "Technology, AI & Innovation",
-      "n_pages": 511,
+      "n_pages": 517,
       "granular": [
         {
           "id": "venture-capital",
@@ -10927,14 +10927,14 @@
           "n_pages": 17
         },
         {
+          "id": "generative-ai",
+          "label": "generative ai",
+          "n_pages": 17
+        },
+        {
           "id": "crypto-exchange-compliance",
           "label": "crypto exchange compliance",
           "n_pages": 16
-        },
-        {
-          "id": "generative-ai",
-          "label": "generative ai",
-          "n_pages": 15
         },
         {
           "id": "large-language-model-capabilities",
@@ -10957,6 +10957,11 @@
           "n_pages": 12
         },
         {
+          "id": "cloud-services-demand",
+          "label": "cloud services demand",
+          "n_pages": 12
+        },
+        {
           "id": "enterprise-ai-software-agents",
           "label": "enterprise ai software agents",
           "n_pages": 12
@@ -10972,13 +10977,13 @@
           "n_pages": 11
         },
         {
-          "id": "corporate-ai-adoption",
-          "label": "corporate ai adoption",
-          "n_pages": 11
-        },
-        {
           "id": "ai-academic-benchmarks",
           "label": "ai academic benchmarks",
+          "n_pages": 10
+        },
+        {
+          "id": "corporate-ai-adoption",
+          "label": "corporate ai adoption",
           "n_pages": 10
         },
         {
@@ -11117,11 +11122,6 @@
           "n_pages": 4
         },
         {
-          "id": "llm-benchmarks",
-          "label": "llm benchmarks",
-          "n_pages": 4
-        },
-        {
           "id": "machine-learning",
           "label": "machine learning",
           "n_pages": 4
@@ -11149,6 +11149,11 @@
         {
           "id": "ai-content-generation",
           "label": "ai content generation",
+          "n_pages": 3
+        },
+        {
+          "id": "ai-market-disruption-index",
+          "label": "ai market disruption index",
           "n_pages": 3
         },
         {
@@ -11202,6 +11207,11 @@
           "n_pages": 3
         },
         {
+          "id": "llm-benchmarks",
+          "label": "llm benchmarks",
+          "n_pages": 3
+        },
+        {
           "id": "open-source-large-language-models",
           "label": "open source large language models",
           "n_pages": 3
@@ -11244,11 +11254,6 @@
         {
           "id": "ai-in-claim-denials",
           "label": "ai in claim denials",
-          "n_pages": 2
-        },
-        {
-          "id": "ai-market-disruption-index",
-          "label": "ai market disruption index",
           "n_pages": 2
         },
         {
@@ -11329,6 +11334,11 @@
         {
           "id": "digital-transaction-volume",
           "label": "digital transaction volume",
+          "n_pages": 2
+        },
+        {
+          "id": "enterprise-genai-roi",
+          "label": "enterprise genai roi",
           "n_pages": 2
         },
         {
@@ -11539,11 +11549,6 @@
         {
           "id": "initial-day-underpricing",
           "label": "initial day underpricing",
-          "n_pages": 1
-        },
-        {
-          "id": "llm-context-windows",
-          "label": "llm context windows",
           "n_pages": 1
         },
         {
@@ -12588,7 +12593,7 @@
     {
       "id": "corporates-earnings",
       "label": "Corporates, Earnings & Capital Spending",
-      "n_pages": 643,
+      "n_pages": 644,
       "granular": [
         {
           "id": "capital-expenditure",
@@ -12633,7 +12638,7 @@
         {
           "id": "hyperscaler-capital-expenditure",
           "label": "hyperscaler capital expenditure",
-          "n_pages": 21
+          "n_pages": 22
         },
         {
           "id": "corporate-governance",
@@ -13519,7 +13524,7 @@
     {
       "id": "other",
       "label": "Other Corpus Topics",
-      "n_pages": 1555,
+      "n_pages": 1556,
       "granular": [
         {
           "id": "financial-services-licensing",
@@ -19684,6 +19689,11 @@
         {
           "id": "worker-s-utopia-index",
           "label": "worker's utopia index",
+          "n_pages": 1
+        },
+        {
+          "id": "workflow-integration-barriers",
+          "label": "workflow integration barriers",
           "n_pages": 1
         },
         {

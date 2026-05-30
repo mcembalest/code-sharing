@@ -34,13 +34,13 @@ INDEX_DIR = ROOT / "index"
 # parent env (no key) and falls back to the Claude subscription/OAuth login instead.
 load_dotenv(ROOT / ".env")
 MODEL_NAME = "sentence-transformers/static-retrieval-mrl-en-v1"
-AGENT_MODEL = "claude-haiku-4-5-20251001"
-# claude-haiku-4-5 list price, USD per token. Used only for the LIVE running-cost estimate emitted
-# per turn; the SDK's ResultMessage.total_cost_usd is the authoritative figure we reconcile to at the
+# AGENT_MODEL = "claude-haiku-4-5-20251001"
+AGENT_MODEL="claude-sonnet-4-6"
+# the SDK's ResultMessage.total_cost_usd is the authoritative figure we reconcile to at the
 # end. Cache write = 1.25x input, cache read = 0.1x input (standard Anthropic multipliers).
 TOKEN_PRICE = {
-    "input": 1.00 / 1_000_000,
-    "output": 5.00 / 1_000_000,
+    "input": 3.00 / 1_000_000,
+    "output": 15.00 / 1_000_000,
     "cache_write": 1.25 / 1_000_000,
     "cache_read": 0.10 / 1_000_000,
 }
@@ -56,104 +56,112 @@ def usage_cost(usage: dict[str, Any] | None) -> float:
         + usage.get("cache_read_input_tokens", 0) * TOKEN_PRICE["cache_read"]
     )
 SYSTEM = """You are the research agent for "Eye on the Market" — 20 years (~5,100 pages) of \
-Michael Cembalest's J.P. Morgan letters, indexed page-by-page. The user is usually the author \
-or someone working directly with the author's corpus. Your default job is EXHAUSTIVE recall: \
-for terse topical inputs, enumerate the relevant things written or shown in the corpus without \
-requiring the user to write "what is everything I have ever written about..." each time. The user's \
-input describes the desired OUTPUT (subject + scope + shape), not query text: derive concise topical \
-query strings (subject + entities + synonyms) for search/enumerate from it — never pass the \
-conversational request sentence as q, which dilutes ranking and tanks recall. Preserve the SCOPE \
-(stay exhaustive over the subject); never narrow it.
+Michael Cembalest's J.P. Morgan letters, indexed page-by-page. The user is usually the author. \
+The user's input describes the desired OUTPUT (subject + scope + shape), not query text. Derive \
+concise topical query strings (subject + entities + synonyms) — never pass the conversational \
+request sentence as q; it dilutes ranking and tanks recall.
+
+QUERY SHAPE — classify BEFORE retrieval, then match effort to shape
+- NARROW / FACTUAL ("did I mention X in 2007?", "earliest mention of Y", "highest single-issue
+  page count"): one targeted lookup. Often answerable from find_mentions + a couple of `get`
+  calls. Produce a short direct prose answer with [p. N] citations. Do NOT open with a
+  "Coverage map:" header and do NOT enumerate broad topics — that's over-engineering here.
+- TOPICAL / EXHAUSTIVE ("everything I wrote about X", "my view on X over time", "show me every
+  chart of X"): coverage-map mode. Use enumerate as the backbone, group by sub-topic or
+  chronology, emit headings, finish with a synthesizing answer block.
+- ANALYTICAL ("what did I get wrong", "what open questions did I pose"): see ANALYTICAL QUESTIONS
+  below. Synthesis-heavy, not findable by similarity alone.
+When the shape is ambiguous, default to TOPICAL — coverage maps degrade more gracefully than
+narrow answers do. The cost of over-investigating a narrow question is real (latency + tokens) —
+don't keep widening just for completeness when the answer is already in hand.
+
+TOOL SURFACE (6 tools)
+- find_mentions(terms, [date_range], [mode]): exact regex over page text + chart cards. Default
+  UNION across terms — a page matches if any term hits. Pass mode="all" only when you truly need
+  every term on the same page. AUTO-COMMITS matched pages as quote findings. Use FIRST for named
+  people, organizations, products, legislation, exact phrases.
+- search(q, [date_range], [chart_only], [topic_id], [limit]): hybrid BM25 + semantic (RRF fusion).
+  Returns ranked hits but does NOT commit. Use for widening / vocabulary-drift passes.
+- list_topics([high_level]): no args → high-level buckets. high_level=<bucket id> → granular topic
+  ids inside that bucket (those are what `enumerate` takes).
+- enumerate(topic_ids, q, [date_range], [chart_only], [min_relevance], [must_contain]): union the
+  tagged pages of the given granular topics, rank by similarity to q, and AUTO-COMMIT the on-point
+  pages. The coverage backbone for topical recall. Pass must_contain=[entity terms] when the query
+  is about a specific named entity but you want broad topical context — see ENTITY GUARDRAIL.
+- get({page} | {start,end} | {issue_id}): fetch full merged page records.
+- ask_user(question, why): pause the run with ONE terse clarifying question. High bar — only call
+  when concrete evidence (numbers, not vibes) says clarification would materially change retrieval.
+  See CLARIFICATION below. After calling, STOP.
+- add_to_report(kind, ...): manual commits. Kinds: heading {text}; narrative {text}; answer {text}
+  (the final coverage map — call this exactly ONCE at the very end); quote {text, page, issue_date,
+  title, relevance, src}; chart {page, caption, relevance, src}.
+
+CLARIFICATION — use sparingly
+Default is to proceed without asking. The user dislikes pointless back-and-forth. Only call
+`ask_user` when there is concrete evidence that clarifying would change WHAT you retrieve, not
+just polish the framing. Real triggers:
+- An entity name maps to multiple distinct corpus subjects and committing to one would require
+  redoing the run (e.g. "Clinton" → Bill / Hillary / the administration; "Powell" → Fed chair /
+  Colin Powell).
+- A topic union shows >5x over-recall vs the user's phrasing implies, AND the user's words point
+  to a plausible narrower scope (e.g. user asked about "China economy", topic union spans 14
+  sub-aspects across 800 pages — ask which sub-aspect).
+- The user's words have two materially different corpus interpretations and you cannot pick by
+  surface evidence (e.g. "my views on AI" could mean the technology vs the equity bubble).
+Bad triggers (do NOT ask): generic ambiguity, scope feels broad, "just to be sure". When in
+doubt, proceed and produce the broader recall; the user can re-run narrower.
+After calling ask_user, STOP — no further tool calls, no answer. The run ends; the user refines
+and re-runs.
 
 OUTPUT CONTRACT
 - Every claim carries a page citation: [p. N] for one page, [pp. N-M] for a span.
-- Commit each finding the moment you confirm it, via add_to_report; the report IS the
-  accumulation of those calls (do NOT hoard findings for a single end dump). On the topical fast
-  path, enumerate commits the quote/chart findings for you; after enumerate, do NOT duplicate those
-  findings with add_to_report. Kinds:
-    heading   {text}                                          open a section / sub-topic
-    quote     {text, page, issue_date, title, relevance, src} a textual finding (verbatim or tight)
-    chart     {page, caption, relevance, src}                 a relevant chart/figure (image is rendered)
-    narrative {text}                                          connective synthesis across findings
-    answer    {text}                                          ONE final coverage map (via finish_report)
-  - relevance (quote/chart): "primary" if the finding DIRECTLY answers the question, "supporting"
-    for context/corroboration. Default is "supporting" — reserve "primary" for the strongest,
-    most on-point evidence so the reader's eye lands there first.
-  - src = a short note on what surfaced it (e.g. "search_topic:solar-pv-costs" or
-    "search_semantic:'LCOE'") so the trace and report stay linked.
+- The report IS the accumulation of report-lane events. find_mentions and enumerate auto-commit
+  their findings — do NOT loop add_to_report to re-add them.
+- relevance (quote/chart): "primary" for findings that DIRECTLY answer the question, "supporting"
+  for context. Default supporting; reserve primary for the strongest evidence.
+- src = a short note on what surfaced it (e.g. "search:'LCOE'" or "find_mentions:china") so the
+  trace and report stay linked.
 - QUOTE FIDELITY (hard rule): any text you wrap in quotation marks in a quote finding MUST be the
-  author's actual words, copied verbatim from that page's content_text — NEVER from card_text. Each
-  page has two text fields: content_text is what the author wrote; card_text is an AI vision summary
-  of the charts. card_text paraphrases ("US natural gas demand will remain highly resilient,
-  declining by only 13% by 2035") are NOT the author's words. Quoting them in quotation marks
-  fabricates author wording and will be rejected by add_to_report. If you want to convey a chart's
-  content, either quote the verbatim sentence from content_text, or write it as your own paraphrase
-  with NO quotation marks. Chart captions are AI-generated chart descriptions, not quotes.
-- FINISH by calling finish_report exactly once with a compact author-facing coverage map, not a
-  generic essay. Keep it tight: 4-6 bullets or short paragraphs, focused on coverage areas,
-  chronology, and primary cited pages. Chronology labels must be coherent date ranges (for example,
-  "2014–2026" or "2014, then 2025–2026"), never reversed or malformed ranges. This pinned block is
-  the first thing the reader sees.
+  author's actual words, copied verbatim from that page's content_text — NEVER from card_text.
+  content_text is what the author wrote; card_text is an AI vision summary of the charts. Quoting
+  card_text paraphrases in quotation marks fabricates author wording and will be rejected. Either
+  copy verbatim from content_text, or drop the quotes and present as paraphrase.
+- ANSWER BLOCK depends on shape. TOPICAL queries: FINISH by calling add_to_report(kind="answer",
+  text=...) exactly once with a compact author-facing coverage map (4–6 bullets / short
+  paragraphs; coverage areas, chronology, primary cited pages). Chronology labels must be
+  coherent date ranges ("2014–2026", never reversed). NARROW / FACTUAL queries: an explicit
+  answer block is OPTIONAL — the auto-committed findings often self-suffice. Emit one only when
+  there is genuine synthesis to add (resolving an ambiguity, stating an explicit negative
+  finding like "no, you did not write about the iPhone in 2007"). Don't pad a one-line answer
+  with scaffolding.
 
-RETRIEVAL — use several signals; trust no single one
+RETRIEVAL PLAYBOOK
 1. Decompose the question into sub-aspects and likely sub-topics.
-2. NAMED PEOPLE / ENTITIES: exact mentions are the recall backbone. Before relying on topics,
-   call find_mentions with the user's raw query plus exact phrase/distinctive variants. For
-   "Hillary Clinton", use terms such as "Hillary Clinton" and "Hillary"; avoid surname-only
-   variants and generic role descriptors ("Secretary of State", "candidate", "president") when
-   they are ambiguous unless the user asked for that broader role/surname. If find_mentions returns
-   pages, commit them all and use keyword/semantic search only to catch aliases or indirect
-   references; do not cite widening hits unless you verify and commit them as directly relevant. Do
-   not conclude an entity is absent without this exact mention check.
-3. DISCOVER topics: call list_topics for the high-level buckets (page counts + a few sample
-   granular ids each), then list_topics(high_level=<bucket id>) to expand the full granular id
-   list under a relevant bucket. Pick the relevant GRANULAR topic ids — those are what
-   search_topic takes. Buckets are keyword-routed and mostly coherent, but "other" is a broad
-   catch-all and any single label can mislead, so route on granular topics and corroborate.
-4. ENUMERATE: once you've chosen relevant granular topic ids, call enumerate with all of them
-   together and pass the user's original query as q. It unions the topics (that union is your
-   coverage_total), surfaces the on-point pages in one call, and returns a compact primary-page
-   summary plus the coverage accounting for your final map. Use search_topic only to preview a
-   topic's size before enumerating.
-5. WIDEN: run search_semantic AND search_keyword with several reformulations — vocabulary drifts
-   across 20 years ("solar cost" 2005 vs "module ASP / LCOE" 2025). Tagging misses things; search
-   catches stragglers. Use chart_only=true when the question is about what was *shown*.
-6. READ context with get_page / get_pages / get_issue, and follow cross-references
-   ("as discussed in last year's energy paper").
+2. NAMED PEOPLE / ENTITIES: exact mentions are the recall backbone. Call find_mentions with the
+   exact phrase plus distinctive alias variants (for "Hillary Clinton", terms=["Hillary Clinton",
+   "Hillary"]; avoid bare surnames and generic role descriptors unless the user asked for that
+   broader scope). Remember: terms are UNIONed by default. Don't conclude an entity is absent
+   without this check.
+3. TOPICAL queries: list_topics to discover buckets, list_topics(high_level=<bucket>) to expand
+   granular ids, then enumerate the relevant granular topic_ids together with the user's full
+   query as q. For multi-aspect queries (subject + qualifier — an index + a margin measure, a
+   country + a policy), pick topics covering each aspect; enumerate ranks the union by similarity
+   to q and surfaces only on-point pages, folding merely-tagged remainder into one aggregate line.
 
-FAST PATH FOR TOPICAL / QUANTITATIVE QUERIES
-- A short topic phrase is usually a topical recall query. For these, do not prove coverage by
-  reading every issue. The bulk enumerate call is the coverage backbone over the chosen topics.
-- Choose the GRANULAR topics that match the user's specific words and likely synonyms, not a broad
-  umbrella bucket when a narrower label exists. For a MULTI-ASPECT query (a subject plus a specific
-  metric or qualifier — an index plus a margin measure, a sector plus its costs, a country plus a
-  policy), pick topics covering each aspect AND pass the user's full query as q. enumerate ranks the
-  union by similarity to q and surfaces only the pages that are on-point for the WHOLE query,
-  folding the merely-tagged remainder into one aggregate line — so you never hand-filter and a broad
-  subject topic can't flood the report. If the on-point set looks too small, widen with search or
-  re-run enumerate with a lower min_relevance; if it looks too loose, raise min_relevance.
-- After enumerate, run at most a small widening pass (keyword + semantic reformulations). Add any
-  truly missing direct findings that enumerate did not already emit, with a hard ceiling of 5
-  manual add_to_report calls after enumerate. If there are more possible widening hits, summarize
-  them in finish_report as "widening surfaced additional candidates" rather than committing them
-  one by one. Do not loop over add_to_report for already-emitted enumerate findings. Do not loop
-  over get_page for pages already summarized in enumerate.primary_pages. Do not loop over get_issue,
-  get_pages, mark_inspected, or coverage_status on the topical fast path unless you are resolving a
-  specific ambiguity.
-
-EXHAUSTIVENESS — coverage is tracked by tools, never by memory
-- The system compacts context, so DO NOT rely on remembering what you checked. The coverage
-  tools are the only source of truth.
-- For topical fast-path runs, enumerate's coverage_total (the full tagged union) is the coverage
-  substrate; exhaustive means exhaustive over chosen topic ids plus a small explicit widening
-  search, not all issues in the corpus. Reflect both numbers in your map (e.g. "N pages on-point of
-  M tagged").
-- Decide your scope (a topic_id and/or a date_range).
-- As you examine an issue's pages, call mark_inspected with that issue's id.
-- Periodically call coverage_status (scoped by the same topic_id/date_range) to see what remains.
-  Keep working until remaining is empty — or until the only remaining issues are, on inspection,
-  genuinely irrelevant (say so in a narrative note). This full issue-coverage loop is for analytical
-  questions, not the topical fast path.
+ENTITY GUARDRAIL on enumerate
+When the query is about a specific named entity (a country, person, company, product) and you
+enumerate BROADER topics for context (e.g. "Argentina charts" -> sovereign-debt + currency-pegs +
+emerging-market-vulnerabilities), ALWAYS pass must_contain=[entity terms] to enumerate. Embedding
+similarity is conceptual, not lexical — without must_contain, a Greek-default chart will rank high
+against "Argentina peso default" and get committed. Use partial stems so morphology is covered
+(must_contain=["Argentin"] catches both Argentina and Argentine; must_contain=["Putin","Russia",
+"Kremlin"] for a Putin query). Find_mentions does NOT need this — it already filters lexically.
+4. WIDEN with `search` using several reformulations — vocabulary drifts across 20 years ("solar
+   cost" 2005 vs "module ASP / LCOE" 2025). Use chart_only=true when the question is about what
+   was *shown*. Add genuinely missing widening hits via add_to_report (small handful at most — if
+   widening turns up many candidates, summarize them in the final answer rather than dumping each).
+5. READ context with `get` (single page, range, or whole issue) only when you need to verify a
+   cross-reference or pull more text — don't loop `get` over pages already summarized by enumerate.
 
 ANALYTICAL QUESTIONS ("what did I get wrong", "what open questions did I pose")
 Not findable by similarity alone. Decompose: for "got wrong," gather the author's predictions on a
@@ -162,10 +170,16 @@ questions," scan for explicit question framings and unresolved threads.
 
 STYLE
 - Group findings by sub-topic and/or chronology. Prefer verbatim quotes and real charts over paraphrase.
+- Quote excerpts should be sentence-bounded and readable (1–3 sentences from content_text,
+  not a header fragment), with the phrase that actually answers the query wrapped in markdown
+  **bold**. find_mentions and enumerate already format their auto-committed excerpts this way;
+  when you compose your own add_to_report(kind="quote", ...) follow the same shape.
 - When a chart matters, surface it (kind=chart) with the actual numbers in the caption.
-- Every line the reader sees carries a citation. Stop when coverage_status is exhausted for your
-  scope on analytical runs, or when enumerate + widening are complete on topical runs, every
-  confirmed aspect is in the report, and you have called finish_report with the coverage map.
+- Every line the reader sees carries a citation. Stop when you have enough evidence to answer
+  the question at the chosen shape — do not keep widening just for completeness. TOPICAL queries
+  stop when find_mentions / enumerate / widening are complete and a coverage-map answer block has
+  been emitted. NARROW queries stop as soon as the answer is in hand (sometimes that's a single
+  find_mentions + a direct prose answer).
 """
 
 _TOKEN = re.compile(r"[A-Za-z0-9]+")
@@ -192,12 +206,6 @@ def _norm_date(value: object) -> str | None:
         return f"{int(m.group(3)):04d}-{_MONTHS[m.group(1).lower()]:02d}-{int(m.group(2)):02d}"
     return None
 _emit_queue: contextvars.ContextVar[asyncio.Queue | None] = contextvars.ContextVar("emit_queue", default=None)
-# Coverage state is per-run, not global: the server is long-lived and serves many queries
-# (possibly concurrently), so a module-level set would leak one query's inspected issues into
-# the next and corrupt coverage_status. A contextvar isolates it per run_agent call.
-_inspected_var: contextvars.ContextVar[set[str] | None] = contextvars.ContextVar("inspected", default=None)
-_enumerated_var: contextvars.ContextVar[bool] = contextvars.ContextVar("enumerated", default=False)
-_post_enumerate_adds_var: contextvars.ContextVar[int] = contextvars.ContextVar("post_enumerate_adds", default=0)
 MAX_SEARCH_LIMIT = 10
 MAX_LIST_LIMIT = 10
 MAX_TOPIC_CHILDREN = 5
@@ -290,14 +298,6 @@ async def emit(ev: dict[str, Any]) -> None:
         await queue.put(ev)
 
 
-def inspected() -> set[str]:
-    s = _inspected_var.get()
-    if s is None:
-        s = set()
-        _inspected_var.set(s)
-    return s
-
-
 def in_date_range(rec: dict, date_range: list[str] | None) -> bool:
     if not date_range or len(date_range) != 2 or not date_range[0] or not date_range[1]:
         return True
@@ -368,28 +368,6 @@ def unverified_quoted_spans(text: str, page: dict | None) -> list[str]:
     return bad
 
 
-def exact_terms_from_query(q: str) -> list[str]:
-    q = _WS.sub(" ", (q or "").strip(" ?!."))
-    if not q:
-        return []
-    tail = q
-    m = re.search(r"\b(?:about|on|regarding|re|for)\s+(.+)$", q, re.I)
-    if m:
-        tail = m.group(1).strip(" ?!.")
-    tail = re.sub(r"^(?:the|a|an)\s+", "", tail, flags=re.I)
-    tail = re.sub(r"\b(?:coverage|pages|mentions|references|writings)\b", "", tail, flags=re.I)
-    tail = _WS.sub(" ", tail).strip(" ?!.")
-    if not tail:
-        return []
-    terms = [tail]
-    words = [w for w in re.findall(r"[A-Za-z][A-Za-z.'-]*", tail) if len(w) >= 4]
-    # For two-token personal names, the first name is often the distinctive corpus mention while
-    # the surname alone can be ambiguous ("Clinton" may mean Bill, Hillary, or the administration).
-    if len(words) == 2 and words[0].lower() not in {"what", "when", "where", "which", "that", "this"}:
-        terms.append(words[0])
-    return terms
-
-
 def remove_ambiguous_surname_terms(terms: list[str]) -> list[str]:
     tokenized = [(term, re.findall(r"[A-Za-z][A-Za-z.'-]*", term)) for term in terms]
     full_names = [words for _, words in tokenized if len(words) in {2, 3}]
@@ -424,18 +402,6 @@ def remove_generic_role_terms(terms: list[str]) -> list[str]:
     return [term for term in terms if not _GENERIC_PERSON_ROLE_RE.match(term.strip())]
 
 
-def _term_key(term: str) -> str:
-    return "".join(re.findall(r"[a-z0-9]+", term.lower()))
-
-
-def terms_look_like_aliases(terms: list[str]) -> bool:
-    keys = [_term_key(t) for t in terms if _term_key(t)]
-    if len(keys) < 2:
-        return True
-    longest = max(keys, key=len)
-    return all(k in longest or longest in k for k in keys)
-
-
 def term_pattern(term: str) -> re.Pattern[str]:
     escaped = r"\s+".join(re.escape(part) for part in _WS.split(term.strip()) if part)
     if not escaped:
@@ -463,6 +429,143 @@ def mention_snippet(text: str, patterns: list[re.Pattern[str]], limit: int = 420
     if end < len(flat):
         out += "..."
     return out
+
+
+# Sentence splitter: break on terminal punctuation followed by whitespace + a sentence-start
+# character. Tolerant enough for chart-rich finance prose (skips decimals like "3.5%" because they
+# aren't followed by whitespace+capital). Not perfect — but the excerpt is bounded to ±1 sentence
+# from an anchor, so over- or under-splitting at most widens or narrows by one fragment.
+_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'\(\[])")
+EXCERPT_MAX_CHARS = 600
+EXCERPT_NEIGHBORS = 1  # sentences on each side of the anchor
+
+
+def _split_sentences(text: str) -> list[str]:
+    flat = _WS.sub(" ", text).strip()
+    if not flat:
+        return []
+    return [s.strip() for s in _SENT_SPLIT.split(flat) if s.strip()]
+
+
+def _bold_matches(text: str, patterns: list[re.Pattern[str]]) -> str:
+    # Escape any existing asterisks so they don't collide with the bold markers we're about to add.
+    safe = text.replace("*", r"\*")
+    # Collect non-overlapping match spans across all patterns (earliest wins on overlap).
+    spans: list[tuple[int, int]] = []
+    for pat in patterns:
+        for m in pat.finditer(safe):
+            spans.append((m.start(), m.end()))
+    if not spans:
+        return safe
+    spans.sort()
+    merged: list[tuple[int, int]] = []
+    for s, e in spans:
+        if merged and s <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+        else:
+            merged.append((s, e))
+    out = []
+    cursor = 0
+    for s, e in merged:
+        out.append(safe[cursor:s])
+        out.append("**" + safe[s:e] + "**")
+        cursor = e
+    out.append(safe[cursor:])
+    return "".join(out)
+
+
+def _assemble_excerpt(sentences: list[str], anchor: int, max_chars: int) -> tuple[str, int, int]:
+    # Greedy ±EXCERPT_NEIGHBORS expansion, then trim symmetrically to stay under max_chars while
+    # keeping the anchor sentence whole. Returns (text, lo, hi) where lo/hi are sentence indices.
+    lo = max(0, anchor - EXCERPT_NEIGHBORS)
+    hi = min(len(sentences), anchor + EXCERPT_NEIGHBORS + 1)
+    while lo < hi:
+        joined = " ".join(sentences[lo:hi])
+        if len(joined) <= max_chars or (lo == anchor and hi == anchor + 1):
+            return joined, lo, hi
+        # Drop whichever neighbor is farther from the anchor; ties drop the trailing one.
+        if (anchor - lo) > (hi - 1 - anchor):
+            lo += 1
+        else:
+            hi -= 1
+    return sentences[anchor], anchor, anchor + 1
+
+
+def _wrap_ellipses(text: str, lo: int, total: int, hi: int) -> str:
+    out = text
+    if lo > 0:
+        out = "…" + out
+    if hi < total:
+        out = out + "…"
+    return out
+
+
+def query_excerpt(
+    page: dict,
+    *,
+    patterns: list[re.Pattern[str]] | None = None,
+    query: str | None = None,
+    query_vec: "np.ndarray | None" = None,
+    model=None,
+    max_chars: int = EXCERPT_MAX_CHARS,
+) -> str:
+    """Wider, sentence-bounded excerpt with the query-relevant span bolded.
+
+    Term mode (patterns given): pick the sentence with the most regex hits, expand ±1, bold each
+    hit inside the excerpt. Semantic mode (query+query_vec+model given): pick the sentence whose
+    embedding is closest to query_vec, expand ±1, bold the whole anchor sentence.
+
+    Bolding is only applied when sourcing from content_text (the author's actual words), so the
+    excerpt remains a faithful quote that passes unverified_quoted_spans. card_text fallback
+    returns a plain snippet — bolded AI-summary text would read as a fabricated author quote.
+    """
+    content = page.get("content_text") or ""
+    sentences = _split_sentences(content)
+    if not sentences:
+        # No author text on this page (chart-only). Fall back to the legacy snippet behavior over
+        # card_text without bolding — we can't claim verbatim authorship of an AI summary.
+        return snippet(page.get("card_text") or "", max_chars)
+
+    anchor = 0
+    if patterns:
+        best_hits = 0
+        for i, sent in enumerate(sentences):
+            hits = sum(1 for pat in patterns if pat.search(sent))
+            if hits > best_hits:
+                best_hits = hits
+                anchor = i
+        if best_hits == 0:
+            # No regex hit landed in content_text (term matched only in card_text). Fall back.
+            return mention_snippet("\n".join([content, page.get("card_text") or ""]), patterns, max_chars)
+    elif query is not None and model is not None:
+        try:
+            sent_vecs = model.encode(sentences, convert_to_numpy=True)
+            norms = np.linalg.norm(sent_vecs, axis=1, keepdims=True)
+            sent_vecs = sent_vecs / np.where(norms == 0, 1.0, norms)
+            if query_vec is None:
+                qv = model.encode([query], convert_to_numpy=True)[0]
+                qv = qv / (np.linalg.norm(qv) or 1.0)
+            else:
+                qv = query_vec
+            sims = sent_vecs @ qv
+            anchor = int(np.argmax(sims))
+        except Exception:
+            anchor = 0
+    # else: no signal — fall through and just take the first sentence(s).
+
+    text, lo, hi = _assemble_excerpt(sentences, anchor, max_chars)
+    if patterns:
+        text = _bold_matches(text, patterns)
+    elif query is not None:
+        # Bold the anchor sentence inside the assembled excerpt.
+        anchor_text = sentences[anchor].replace("*", r"\*")
+        safe = text.replace("*", r"\*")
+        idx = safe.find(anchor_text)
+        if idx >= 0:
+            text = safe[:idx] + "**" + anchor_text + "**" + safe[idx + len(anchor_text):]
+        else:
+            text = safe
+    return _wrap_ellipses(text, lo, len(sentences), hi)
 
 
 def _norm_topic(value: object) -> str:
@@ -569,16 +672,17 @@ def filtered_indices(date_range: list[str] | None, chart_only: bool, topic_id: s
 
 @tool(
     "find_mentions",
-    "Deterministic exact mention search over full merged page text and chart cards. Use this FIRST "
-    "for named people, organizations, products, legislation, or exact phrases before topic search.",
-    {"q": str, "terms": list, "date_range": list, "mode": str, "commit": bool},
+    "Exact regex search over merged page text + chart cards. Pass `terms` — the list of exact "
+    "phrases/aliases to look for (e.g. [\"China\",\"Chinese\",\"US-China\"]). Default behavior is "
+    "UNION: a page matches if ANY term appears. Pass mode=\"all\" to require every term on the same "
+    "page (rare — only for true conjunctions like \"Powell\" AND \"yield curve\"). Auto-commits "
+    "matched pages to the report as quote findings under one heading.",
+    {"terms": list, "date_range": list, "mode": str},
 )
 async def find_mentions(args: dict) -> dict:
     s = _load()
     raw_terms = [str(t).strip() for t in (args.get("terms") or []) if str(t).strip()]
-    if not raw_terms:
-        raw_terms = exact_terms_from_query(str(args.get("q") or ""))
-    # Keep order but drop case-insensitive duplicates.
+    # De-dupe case-insensitively while preserving order.
     terms: list[str] = []
     seen_terms: set[str] = set()
     for term in raw_terms:
@@ -590,14 +694,15 @@ async def find_mentions(args: dict) -> dict:
     terms = remove_generic_role_terms(terms)
     if not terms:
         await emit({"lane": "trace", "type": "tool_result", "name": "find_mentions",
-                    "summary": "0 pages matched exact mentions; no terms supplied or inferred"})
+                    "summary": "0 pages matched: no terms supplied"})
         return {"content": [{"type": "text", "text": json.dumps({
-            "total": 0, "committed": 0, "terms": [], "mode": args.get("mode") or "any", "pages": [],
+            "total": 0, "terms": [], "mode": "any", "pages": [],
         })}]}
-    patterns = [term_pattern(t) for t in terms]
     mode = str(args.get("mode") or "any").lower()
-    require_all = mode == "all" or (len(terms) > 1 and not terms_look_like_aliases(terms))
-    commit = bool(args.get("commit", True))
+    if mode not in {"any", "all"}:
+        mode = "any"
+    require_all = mode == "all"
+    patterns = [term_pattern(t) for t in terms]
     date_range = args.get("date_range")
     matches: list[dict[str, Any]] = []
     for page in s["pages"]:
@@ -613,11 +718,11 @@ async def find_mentions(args: dict) -> dict:
             "issue_date": page.get("issue_date"),
             "title": page.get("title"),
             "matched_terms": found,
-            "snippet": mention_snippet(text, patterns),
+            "snippet": query_excerpt(page, patterns=patterns),
         })
     matches.sort(key=lambda p: p["page"])
     matches = matches[:MAX_ENUMERATE]
-    if commit and matches:
+    if matches:
         label = ", ".join(terms[:4]) + (" ..." if len(terms) > 4 else "")
         await emit({"lane": "report", "kind": "heading", "text": f"Exact mentions: {label}"})
         src = "find_mentions:" + ",".join(terms[:3])
@@ -627,64 +732,61 @@ async def find_mentions(args: dict) -> dict:
                         "title": m.get("title"), "text": m["snippet"],
                         "relevance": "primary", "src": src})
     await emit({"lane": "trace", "type": "tool_result", "name": "find_mentions",
-                "summary": f"{len(matches)} pages matched exact mentions" +
+                "summary": f"{len(matches)} pages matched (mode={mode})" +
                            (": " + ", ".join(f"p.{m['page']}" for m in matches[:12]) if matches else "")})
     return {"content": [{"type": "text", "text": json.dumps({
         "total": len(matches),
-        "committed": len(matches) if commit else 0,
         "terms": terms,
-        "mode": "all" if require_all else "any",
+        "mode": mode,
         "pages": matches[:50],
     })}]}
 
 
 @tool(
-    "search_keyword",
-    "Keyword search over merged page text, chart cards, and topic labels.",
+    "search",
+    "Hybrid keyword+semantic search (RRF fusion of BM25 + embedding cosine) over merged page text, "
+    "chart cards, and topic labels. Returns ranked hits — does NOT commit to the report. Use for "
+    "widening passes and aliasing; for committing topic-tagged pages, use enumerate; for committing "
+    "exact mentions, use find_mentions.",
     {"q": str, "date_range": list, "chart_only": bool, "limit": int, "topic_id": str},
 )
-async def search_keyword(args: dict) -> dict:
+async def search(args: dict) -> dict:
     s = _load()
     limit = bounded_limit(args.get("limit"))
     indices = filtered_indices(args.get("date_range"), bool(args.get("chart_only", False)), args.get("topic_id"))
-    scores = np.asarray(s["bm25"].get_scores(tokenize(distill_query(args["q"]))), dtype=np.float32)
-    ordered = sorted(indices, key=lambda i: float(scores[i]), reverse=True)[:limit]
-    hits = [format_hit(s["pages"][i], float(scores[i])) for i in ordered]
-    await emit({"lane": "trace", "type": "tool_result", "name": "search_keyword", "summary": f"{len(hits)} hits: " + ", ".join(f"p.{h['page']}" for h in hits[:8])})
+    if not indices:
+        await emit({"lane": "trace", "type": "tool_result", "name": "search", "summary": "0 hits (no pages in scope)"})
+        return {"content": [{"type": "text", "text": json.dumps([])}]}
+    q_text = distill_query(args["q"])
+    # BM25 ranks: rank position 0 = best per BM25 score, restricted to the filtered scope.
+    bm25_scores = np.asarray(s["bm25"].get_scores(tokenize(q_text)), dtype=np.float32)
+    bm25_order = sorted(indices, key=lambda i: float(bm25_scores[i]), reverse=True)
+    # Semantic ranks: same idea, cosine similarity against the query embedding.
+    qv = s["model"].encode([q_text], convert_to_numpy=True)[0]
+    qv = qv / (np.linalg.norm(qv) or 1.0)
+    sem_scores = (s["emb"] @ qv).astype(np.float32)
+    sem_order = sorted(indices, key=lambda i: float(sem_scores[i]), reverse=True)
+    # Reciprocal Rank Fusion: stable, scale-free combination of two heterogeneous rankers. k=60 is
+    # the canonical TREC default; the constant dampens the long tail so a page only top-100 in one
+    # ranker but top-5 in the other still surfaces.
+    k = 60
+    rrf: dict[int, float] = {i: 0.0 for i in indices}
+    for rank, i in enumerate(bm25_order):
+        rrf[i] += 1.0 / (k + rank)
+    for rank, i in enumerate(sem_order):
+        rrf[i] += 1.0 / (k + rank)
+    ordered = sorted(indices, key=lambda i: rrf[i], reverse=True)[:limit]
+    hits = [format_hit(s["pages"][i], rrf[i]) for i in ordered]
+    await emit({"lane": "trace", "type": "tool_result", "name": "search",
+                "summary": f"{len(hits)} hits: " + ", ".join(f"p.{h['page']}" for h in hits[:8])})
     return {"content": [{"type": "text", "text": json.dumps(hits)}]}
-
-
-@tool(
-    "search_semantic",
-    "Semantic search over merged page text, chart cards, and topic labels.",
-    {"q": str, "date_range": list, "chart_only": bool, "limit": int, "topic_id": str},
-)
-async def search_semantic(args: dict) -> dict:
-    s = _load()
-    limit = bounded_limit(args.get("limit"))
-    indices = filtered_indices(args.get("date_range"), bool(args.get("chart_only", False)), args.get("topic_id"))
-    q = s["model"].encode([distill_query(args["q"])], convert_to_numpy=True)[0]
-    q = q / (np.linalg.norm(q) or 1.0)
-    scores = (s["emb"] @ q).astype(np.float32)
-    ordered = sorted(indices, key=lambda i: float(scores[i]), reverse=True)[:limit]
-    hits = [format_hit(s["pages"][i], float(scores[i])) for i in ordered]
-    await emit({"lane": "trace", "type": "tool_result", "name": "search_semantic", "summary": f"{len(hits)} hits: " + ", ".join(f"p.{h['page']}" for h in hits[:8])})
-    return {"content": [{"type": "text", "text": json.dumps(hits)}]}
-
-
-@tool("list_issues", "List issue records, optionally scoped by date range.", {"date_range": list})
-async def list_issues(args: dict) -> dict:
-    issues = [compact_issue(i) for i in _load()["issues"] if in_date_range(i, args.get("date_range"))]
-    total = len(issues)
-    issues = issues[:MAX_LIST_LIMIT]
-    await emit({"lane": "trace", "type": "tool_result", "name": "list_issues", "summary": f"{total} issues; returned {len(issues)}"})
-    return {"content": [{"type": "text", "text": json.dumps({"total": total, "issues": issues})}]}
 
 
 @tool(
     "list_topics",
     "Without args: list the high-level buckets (page counts + a few sample granular ids each). "
-    "Pass high_level=<bucket id> to expand the granular topic ids in that bucket — those ids are what search_topic takes.",
+    "Pass high_level=<bucket id> to expand the granular topic ids in that bucket — those ids are "
+    "what `enumerate` takes.",
     {"high_level": str},
 )
 async def list_topics(args: dict) -> dict:
@@ -711,20 +813,6 @@ async def list_topics(args: dict) -> dict:
 
 
 @tool(
-    "search_topic",
-    "PREVIEW a topic: returns the true total tagged-page count plus a small sample (top 10). To "
-    "actually pull every tagged page into the report, use enumerate (it has no 10-cap).",
-    {"topic_id": str, "date_range": list},
-)
-async def search_topic(args: dict) -> dict:
-    topic_id = resolve_topic_id(args.get("topic_id"))
-    pages = [p for p in _load()["pages_by_topic"].get(topic_id, []) if in_date_range(p, args.get("date_range"))]
-    hits = [format_hit(p, 1.0) for p in pages[:MAX_LIST_LIMIT]]
-    await emit({"lane": "trace", "type": "tool_result", "name": "search_topic", "summary": f"{len(pages)} tagged pages for {args['topic_id']}; returned {len(hits)}"})
-    return {"content": [{"type": "text", "text": json.dumps({"total": len(pages), "sample": hits, "note": "sample only; call enumerate for the full set"})}]}
-
-
-@tool(
     "enumerate",
     "RECALL BACKBONE for \"everything about X\": given one or more granular topic_ids, commit the "
     "tagged pages to the report in a SINGLE call -- no per-page get_page/add_to_report needed. Unions "
@@ -734,11 +822,15 @@ async def search_topic(args: dict) -> dict:
     "and summarized as ONE aggregate line, not dumped individually -- so a multi-aspect query "
     "(e.g. an index plus a margin measure, a country plus a policy) does not flood the report with "
     "every page that merely mentions one aspect. Pass the user's full question as q. Optionally set "
-    "min_relevance (0-1, default ~0.38) lower to surface more or higher to surface only the closest.",
-    {"topic_ids": list, "q": str, "date_range": list, "chart_only": bool, "primary_k": int, "min_relevance": float},
+    "min_relevance (0-1, default ~0.38) lower to surface more or higher to surface only the closest. "
+    "ENTITY GUARDRAIL: when enumerating broader topics for a query about a specific named entity "
+    "(country, person, company, product), pass must_contain=[entity terms] -- pages are kept only if "
+    "their text contains at least one of those substrings (case-insensitive, partial match, so "
+    "[\"Argentin\"] catches both \"Argentina\" and \"Argentine\"). Without this, the embedding-similarity "
+    "ranking is conceptual and will surface a Greek-default chart for an Argentina query.",
+    {"topic_ids": list, "q": str, "date_range": list, "chart_only": bool, "primary_k": int, "min_relevance": float, "must_contain": list},
 )
 async def enumerate_topics(args: dict) -> dict:
-    _enumerated_var.set(True)
     s = _load()
     topic_ids = clean_id_list(args.get("topic_ids"))
     # Distill conversational scaffolding so a request sentence ("give me a timeline of my views on
@@ -746,13 +838,29 @@ async def enumerate_topics(args: dict) -> dict:
     q = distill_query(args.get("q") or "")
     date_range = args.get("date_range")
     chart_only = bool(args.get("chart_only", False))
+    # Optional entity guardrail. Embedding similarity ranks by concept, so an Argentina query against
+    # broad sovereign-debt topics will surface Greek/Turkish default pages too. must_contain filters
+    # the union to pages whose merged text literally contains at least one of the supplied
+    # substrings, case-insensitive — kept as substring (not word boundary) so "Argentin" matches both
+    # "Argentina" and "Argentine".
+    raw_terms = args.get("must_contain") or []
+    if not isinstance(raw_terms, list):
+        raw_terms = [raw_terms]
+    must_terms = [str(t).lower() for t in raw_terms if isinstance(t, (str, int, float)) and str(t).strip()]
     seen: set[int] = set()
     union: list[dict] = []
+    dropped_by_must: int = 0
     for tid in topic_ids:
         for p in s["pages_by_topic"].get(tid, []):
             n = int(p["page"])
             if n in seen or (chart_only and not p.get("is_chart_bearing")) or not in_date_range(p, date_range):
                 continue
+            if must_terms:
+                text = ((p.get("content_text") or "") + " " + (p.get("card_text") or "")).lower()
+                if not any(t in text for t in must_terms):
+                    seen.add(n)
+                    dropped_by_must += 1
+                    continue
             seen.add(n)
             union.append(p)
     coverage_total = len(union)  # the full tagged set = exhaustive coverage denominator (never dropped)
@@ -810,7 +918,8 @@ async def enumerate_topics(args: dict) -> dict:
         else:
             await emit({"lane": "report", "kind": "quote", "page": int(p["page"]),
                         "issue_date": p.get("issue_date"), "title": p.get("title"),
-                        "text": snippet((p.get("content_text") or p.get("card_text") or ""), MAX_TEXT_CHARS),
+                        "text": query_excerpt(p, query=q, query_vec=qv if q else None, model=s["model"]) if q
+                                else snippet((p.get("content_text") or p.get("card_text") or ""), MAX_TEXT_CHARS),
                         "relevance": relevance, "src": src})
     if below:
         lo = min(scores[int(p["page"])] for p in below)
@@ -824,11 +933,12 @@ async def enumerate_topics(args: dict) -> dict:
     await emit({"lane": "trace", "type": "tool_result", "name": "enumerate",
                 "summary": f"{coverage_total} pages tagged across {len(topic_ids)} topic(s); "
                            f"surfaced {len(surfaced)} on-point ({n_primary} primary) at floor {floor:.2f}" +
-                           (f", aggregated {len(below)} below floor" if below else ""),
+                           (f", aggregated {len(below)} below floor" if below else "") +
+                           (f", dropped {dropped_by_must} by must_contain={must_terms}" if must_terms else ""),
                 # Structured accounting so eval_run can score without parsing the summary string.
                 "coverage_total": coverage_total, "surfaced": len(surfaced),
                 "below_floor": len(below), "primary": n_primary, "floor": round(floor, 3),
-                "topics": topic_ids})
+                "topics": topic_ids, "must_contain": must_terms, "dropped_by_must_contain": dropped_by_must})
     # The report lane already holds every surfaced page. Return only the top pages plus the coverage
     # accounting so the agent can write a compact, honest coverage map without looping get_page.
     return {"content": [{"type": "text", "text": json.dumps({
@@ -842,31 +952,74 @@ async def enumerate_topics(args: dict) -> dict:
     })}]}
 
 
-@tool("get_issue", "Return full page records for one issue.", {"issue_id": str})
-async def get_issue(args: dict) -> dict:
-    issue = _load()["issue_by_id"].get(args["issue_id"])
-    pages = []
-    if issue:
-        pages = [p for p in _load()["pages"] if int(issue["page_start"]) <= int(p["page"]) <= int(issue["page_end"])]
-    await emit({"lane": "trace", "type": "tool_result", "name": "get_issue", "summary": f"{args['issue_id']} -> {len(pages)} pages"})
-    return {"content": [{"type": "text", "text": json.dumps({"issue": compact_issue(issue) if issue else None, "pages": [compact_page(p) for p in pages[:MAX_LIST_LIMIT]], "total_pages": len(pages)})}]}
+@tool(
+    "get",
+    "Return merged page records. Pass exactly one selector: `page` (single page), `start`+`end` "
+    "(inclusive span), or `issue_id` (all pages of one issue).",
+    {"page": int, "start": int, "end": int, "issue_id": str},
+)
+async def get(args: dict) -> dict:
+    s = _load()
+    issue_id = args.get("issue_id")
+    if issue_id:
+        issue = s["issue_by_id"].get(str(issue_id))
+        pages = ([p for p in s["pages"] if int(issue["page_start"]) <= int(p["page"]) <= int(issue["page_end"])]
+                 if issue else [])
+        await emit({"lane": "trace", "type": "tool_result", "name": "get", "summary": f"{issue_id} -> {len(pages)} pages"})
+        return {"content": [{"type": "text", "text": json.dumps({
+            "issue": compact_issue(issue) if issue else None,
+            "pages": [compact_page(p) for p in pages[:MAX_LIST_LIMIT]],
+            "total_pages": len(pages),
+        })}]}
+    if args.get("start") is not None and args.get("end") is not None:
+        start, end = int(args["start"]), int(args["end"])
+        pages = [p for p in s["pages"] if start <= int(p["page"]) <= end]
+        await emit({"lane": "trace", "type": "tool_result", "name": "get", "summary": f"p.{start}-p.{end} -> {len(pages)} pages"})
+        return {"content": [{"type": "text", "text": json.dumps({
+            "total": len(pages),
+            "pages": [compact_page(p) for p in pages[:MAX_LIST_LIMIT]],
+        })}]}
+    if args.get("page") is not None:
+        n = int(args["page"])
+        page = s["page_by_num"].get(n)
+        await emit({"lane": "trace", "type": "tool_result", "name": "get", "summary": f"p.{n}"})
+        return {"content": [{"type": "text", "text": json.dumps(compact_page(page) if page else None)}]}
+    await emit({"lane": "trace", "type": "tool_result", "name": "get", "summary": "no selector supplied"})
+    return {"content": [{"type": "text", "text": json.dumps({"error": "pass page, start+end, or issue_id"})}]}
 
 
-@tool("get_page", "Return one merged page record.", {"page": int})
-async def get_page(args: dict) -> dict:
-    page = _load()["page_by_num"].get(int(args["page"]))
-    await emit({"lane": "trace", "type": "tool_result", "name": "get_page", "summary": f"p.{args['page']}"})
-    return {"content": [{"type": "text", "text": json.dumps(compact_page(page) if page else None)}]}
+@tool(
+    "ask_user",
+    "Pause the run to ask ONE terse clarifying question. Use sparingly — only when you have "
+    "concrete evidence (numbers, not vibes) that a short clarification would materially change "
+    "retrieval strategy. After calling this you MUST stop: do not run further tools, do not emit "
+    "an answer. The user will read the question, refine the query, and re-run. `why` should "
+    "include the evidence (e.g. \"find_mentions returned 800 pages spanning 14 sub-aspects; "
+    "narrowing scope would cut to ~60\").",
+    {"question": str, "why": str},
+)
+async def ask_user(args: dict) -> dict:
+    question = str(args.get("question") or "").strip()
+    why = str(args.get("why") or "").strip()
+    if not question:
+        await emit({"lane": "trace", "type": "tool_result", "name": "ask_user",
+                    "summary": "rejected: empty question"})
+        return {"content": [{"type": "text", "text": "ask_user requires a non-empty question"}]}
+    await emit({"lane": "ask", "question": question, "why": why})
+    await emit({"lane": "trace", "type": "tool_result", "name": "ask_user",
+                "summary": f"asked: {question[:80]}"})
+    return {"content": [{"type": "text", "text":
+        "Clarification surfaced to the user. STOP NOW: do not call further tools, do not emit "
+        "an answer. The user will refine their query and re-run."}]}
 
 
-@tool("get_pages", "Return an inclusive span of merged page records.", {"start": int, "end": int})
-async def get_pages(args: dict) -> dict:
-    pages = [p for p in _load()["pages"] if int(args["start"]) <= int(p["page"]) <= int(args["end"])]
-    await emit({"lane": "trace", "type": "tool_result", "name": "get_pages", "summary": f"p.{args['start']}-p.{args['end']} -> {len(pages)} pages"})
-    return {"content": [{"type": "text", "text": json.dumps({"total": len(pages), "pages": [compact_page(p) for p in pages[:MAX_LIST_LIMIT]]})}]}
-
-
-@tool("add_to_report", "Commit a confirmed finding to the live report.", {"kind": str, "text": str, "page": int, "issue_date": str, "title": str, "caption": str, "relevance": str, "src": str})
+@tool(
+    "add_to_report",
+    "Commit a single finding to the live report. Kinds: heading {text}; narrative {text}; "
+    "answer {text} (the final coverage-map answer — call this exactly once at the end); "
+    "quote {text, page, issue_date, title, relevance, src}; chart {page, caption, relevance, src}.",
+    {"kind": str, "text": str, "page": int, "issue_date": str, "title": str, "caption": str, "relevance": str, "src": str},
+)
 async def add_to_report(args: dict) -> dict:
     args = dict(args)
     if args.get("kind") not in {"quote", "chart", "heading", "narrative", "answer"}:
@@ -890,13 +1043,6 @@ async def add_to_report(args: dict) -> dict:
                 "page": int(args["page"]),
                 "unverified_spans": bad,
             })}]}
-    if _enumerated_var.get() and args["kind"] in {"quote", "chart"}:
-        n = _post_enumerate_adds_var.get()
-        if n >= 5:
-            await emit({"lane": "trace", "type": "tool_result", "name": "add_to_report",
-                        "summary": "skipped post-enumerate manual finding; 5-item cap reached"})
-            return {"content": [{"type": "text", "text": "skipped: post-enumerate manual finding cap reached"}]}
-        _post_enumerate_adds_var.set(n + 1)
     if args["kind"] in {"heading", "narrative", "answer"}:
         for key in ("page", "issue_date", "title", "caption", "relevance", "src"):
             args.pop(key, None)
@@ -904,49 +1050,14 @@ async def add_to_report(args: dict) -> dict:
     return {"content": [{"type": "text", "text": "added"}]}
 
 
-@tool("finish_report", "Emit the final compact coverage-map answer.", {"text": str})
-async def finish_report(args: dict) -> dict:
-    await emit({"lane": "report", "kind": "answer", "text": args.get("text") or ""})
-    return {"content": [{"type": "text", "text": "finished"}]}
-
-
-@tool("mark_inspected", "Record issue ids that have been examined.", {"issue_ids": list})
-async def mark_inspected(args: dict) -> dict:
-    seen = inspected()
-    seen.update(str(i) for i in args.get("issue_ids", []))
-    await emit({"lane": "trace", "type": "tool_result", "name": "mark_inspected", "summary": f"{len(args.get('issue_ids', []))} issues marked inspected"})
-    return {"content": [{"type": "text", "text": json.dumps({"inspected": sorted(seen)})}]}
-
-
-@tool("coverage_status", "Report issue coverage for an optional date range and/or topic id.", {"date_range": list, "topic_id": str})
-async def coverage_status(args: dict) -> dict:
-    topic_id = args.get("topic_id")
-    if topic_id:
-        issue_ids = {p.get("issue_id") for p in _load()["pages_by_topic"].get(topic_id, []) if p.get("issue_id") and in_date_range(p, args.get("date_range"))}
-    else:
-        issue_ids = {i["issue_id"] for i in _load()["issues"] if in_date_range(i, args.get("date_range"))}
-    seen = inspected()
-    remaining = sorted(issue_ids - seen)
-    out = {"inspected": len(issue_ids & seen), "total": len(issue_ids), "remaining": remaining}
-    await emit({"lane": "trace", "type": "tool_result", "name": "coverage_status", "summary": f"{out['inspected']}/{out['total']} inspected"})
-    return {"content": [{"type": "text", "text": json.dumps(out)}]}
-
-
 TOOLS = [
     find_mentions,
-    search_keyword,
-    search_semantic,
-    list_issues,
+    search,
     list_topics,
-    search_topic,
     enumerate_topics,
-    get_issue,
-    get_page,
-    get_pages,
+    get,
+    ask_user,
     add_to_report,
-    finish_report,
-    mark_inspected,
-    coverage_status,
 ]
 
 eom = create_sdk_mcp_server(name="eom", version="1.0.0", tools=TOOLS)
@@ -976,48 +1087,36 @@ options = ClaudeAgentOptions(
 
 def _agent_user_message(user_query: str) -> str:
     return f"""Context for this run:
-The user's input below states the DESIRED OUTPUT (scope + shape of the answer) for an Eye on the
-Market authoring workflow. It is NOT query text. Do not pass the user's sentence verbatim as the q
-to search_semantic, search_keyword, or enumerate: conversational scaffolding ("give me a timeline
-of my views on", "what is everything I have ever written about", "how my views evolved") dilutes
-the embedding and BM25 ranking and silently tanks recall (the sentence "give me a timeline of my
-views on china" ranks far worse than "china"). Instead, READ the prompt for its subject and derive
-the search inputs yourself:
-  - the core SUBJECT/entities and their synonyms + vocabulary drift across 20 years (e.g. "china",
-    "RMB / renminbi / yuan", "PBoC", "us-china trade") — these are your q strings and find_mentions
-    terms;
-  - the SCOPE (exhaustive over the whole subject unless the prompt narrows it) — preserve this, do
-    not shrink the subject;
-  - the OUTPUT SHAPE ("timeline" => organize chronologically and make sure every era is represented;
-    "what I got wrong" => predictions vs later contradicting events) — this shapes the report, not
-    the query strings.
-Use concise topical queries (a few keywords/entities), not the request sentence.
-If the prompt names a person, organization, product, law, or other specific entity, start with
-find_mentions over the entity name and exact phrase/distinctive variants — NOT the full request
-sentence. Do not add ambiguous surname-only variants or generic role descriptors for person-name
-queries unless the prompt asks for that broader scope. Topic labels are conceptual, not an entity index.
+The user's input below states the DESIRED OUTPUT (scope + shape) for an Eye on the Market
+authoring workflow. It is NOT query text. Do not pass the user's sentence verbatim as q to
+`search` or `enumerate`: conversational scaffolding ("give me a timeline of my views on", "how my
+views evolved") dilutes BM25 + embedding ranking and tanks recall ("give me a timeline of my views
+on china" ranks far worse than "china"). Read the prompt for its subject and derive:
+  - SUBJECT/entities + 20-year vocabulary drift (e.g. "china", "RMB / renminbi / yuan", "PBoC",
+    "us-china trade") — these are your q strings and find_mentions terms.
+  - SCOPE (exhaustive over the subject unless the prompt narrows it) — preserve it.
+  - OUTPUT SHAPE ("timeline" => chronological; "what I got wrong" => predictions vs later
+    contradictions) — this shapes the report, not the query strings.
+
+If the prompt names a person, organization, product, law, or other entity, start with
+find_mentions over the entity + distinctive alias variants (NOT the full request sentence). Skip
+ambiguous surname-only variants and generic role descriptors unless the user asks for that scope.
+Pass aliases as separate items in `terms` — find_mentions UNIONs them by default.
 
 User query, verbatim:
 {user_query}
 
 Task:
-Enumerate the relevant coverage in Eye on the Market for that query. Prefer the bulk enumerate
-tool for topical/quantitative coverage, widen with keyword and semantic search for vocabulary drift,
-and finish with a compact coverage map rather than a generic explanatory essay. For topical queries,
-do not enter the full issue-by-issue coverage loop after enumerate; use enumerate's committed pages
-plus a small widening pass as the recall basis. After enumerate, do not re-add enumerate's findings
-with add_to_report; only use add_to_report if a widening search finds a genuinely missing page, and
-use at most 5 manual add_to_report calls after enumerate.
-Do not call get_page just to summarize pages already returned in enumerate.primary_pages. Finish by
-calling finish_report once; do not use add_to_report for the final answer."""
+Enumerate the relevant coverage. Use enumerate as the topical recall backbone; widen with `search`
+for vocabulary drift; commit narrative connective tissue and any genuinely missing widening hits
+via add_to_report. Don't re-add enumerate's auto-committed findings. Don't `get` pages already
+summarized in enumerate.primary_pages unless you need to verify a quote or follow a cross-ref.
+Finish with add_to_report(kind="answer", text=<compact coverage map>) — exactly once."""
 
 
 async def run_agent(prompt: str):
     q: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     token = _emit_queue.set(q)
-    inspected_token = _inspected_var.set(set())
-    enumerated_token = _enumerated_var.set(False)
-    post_enumerate_adds_token = _post_enumerate_adds_var.set(0)
 
     run_start = time.perf_counter()
     cost_total = 0.0  # cumulative LIVE estimate from per-turn usage; reconciled to SDK total at done
@@ -1051,7 +1150,7 @@ async def run_agent(prompt: str):
                         cache_r = msg.usage.get("cache_read_input_tokens", 0)
                         cache_w = msg.usage.get("cache_creation_input_tokens", 0)
                         await q.put({
-                            "lane": "trace", "type": "usage", "name": "llm_turn", "model": msg.model,
+                            "lane": "trace", "type": "usage", "model": msg.model,
                             "input_tokens": fresh_in,
                             "output_tokens": msg.usage.get("output_tokens", 0),
                             "cache_read_tokens": cache_r,
@@ -1080,6 +1179,9 @@ async def run_agent(prompt: str):
     task = asyncio.create_task(drive())
     trace_seq = 0
     pending_call_ts: float | None = None
+    report_seen = False
+    ask_seen = False
+    last_thought_text = ""
     try:
         while True:
             ev = await q.get()
@@ -1095,16 +1197,28 @@ async def run_agent(prompt: str):
                 elif ev.get("type") == "tool_result" and pending_call_ts is not None:
                     ev["latency_ms"] = round((ev_ts - pending_call_ts) * 1000, 1)
                     pending_call_ts = None
+                if ev.get("type") == "thought" and str(ev.get("text") or "").strip():
+                    last_thought_text = str(ev["text"]).strip()
+            elif ev.get("lane") == "report":
+                report_seen = True
+            elif ev.get("lane") == "ask":
+                ask_seen = True
             ev.pop("_ts", None)
+            if (
+                ev.get("type") == "done"
+                and not ev.get("is_error")
+                and not report_seen
+                and not ask_seen
+                and last_thought_text
+            ):
+                report_seen = True
+                yield {"lane": "report", "kind": "answer", "text": last_thought_text}
             yield ev
             if ev.get("type") == "done":
                 break
         await task
     finally:
         _emit_queue.reset(token)
-        _inspected_var.reset(inspected_token)
-        _enumerated_var.reset(enumerated_token)
-        _post_enumerate_adds_var.reset(post_enumerate_adds_token)
 
 
 if __name__ == "__main__":

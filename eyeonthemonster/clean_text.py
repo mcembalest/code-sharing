@@ -41,12 +41,81 @@ _PAGENUM = re.compile(r"^\d{1,4}$")
 _BULLET_ONLY = re.compile("^[" + re.escape("-–—•·∙◦●○▪♦") + r"\s]*$")
 _BLANKS = re.compile(r"\n{2,}")
 
+# Sometimes only the "J.P. MORGAN" tail of the running header survives OCR
+# (the "EYE ON THE MARKET ... MICHAEL CEMBALEST" portion is mangled into
+# wingdings/control chars and stripped before this line is matched). Catch
+# that residual as its own line type.
+_HEADER_TAIL = re.compile(r"^\W*j\.?\s*p\.?\s*morgan\W*$", re.I)
+
+# "Access our X here" cross-promo banner pointing the reader at a sibling
+# publication (web portal, outlook, energy paper). Existing _PORTAL only
+# caught the covid-era "web portal here"; widen to all "access our ... here".
+_CROSS_PROMO = re.compile(r"^access our\b.*\bhere\b\.?$", re.I)
+
+# Per-issue preamble paragraph that opens certain modern pieces. PyMuPDF
+# splits it into ~3 lines, so we match each distinctive fragment of the
+# paragraph individually — all of them are stable boilerplate that never
+# appears in body prose.
+_PB_PREAMBLE = re.compile(
+    r"the following commentary has been developed exclusively for j\.?\s*p\.?\s*morgan"
+    r"|preserve the integrity of our(?:\s+ongoing)?"
+    r"|integrity of our ongoing dialogue"
+    r"|ongoing dialogue with you,?\s+it is important that this information remain private"
+    r"|it is important that this information remain private",
+    re.I,
+)
+
+# International distribution-restriction line that lands by itself on certain
+# pages: "FOR INSTITUTIONAL/WHOLESALE/PROFESSIONAL CLIENTS AND QUALIFIED ..."
+_INST_USE = re.compile(
+    r"\bfor (?:institutional|wholesale|professional)[\s/]+"
+    r"(?:institutional|wholesale|professional)",
+    re.I,
+)
+
+# Per-issue sub-banner. Appears immediately below the JPM running header on
+# every page of an issue, naming the publication family. Two shapes observed:
+#   (a) "/"-separated nav listing concurrent publications, e.g.
+#       "2025 Energy Paper / Trump Tracker"
+#       "2024 Outlook / 2024 energy paper / US inflation monitor / US Federal debt monitor"
+#   (b) a single short banner naming one publication, e.g.
+#       "Online Trump Tracker", "2025 Eye on the Market Outlook", "2026 Energy Paper"
+# Body prose can mention any of these phrases, so we don't strip on keyword
+# alone — we require the whole line to be short, terminal-punctuation-free,
+# and either slash-delimited with short segments or a single brief banner.
+_SUBBANNER_KEYWORD = re.compile(
+    r"\b(?:trump tracker|energy paper|"
+    r"eye on the market outlook|"
+    r"(?:annual\s+)?outlook|"
+    r"(?:inflation|federal\s+debt|economic|equity|labor)\s+monitor)\b",
+    re.I,
+)
+
+
+def _is_sub_banner(line: str) -> bool:
+    if not line or len(line) > 120:
+        return False
+    if line[-1] in ".?!":
+        return False
+    if not _SUBBANNER_KEYWORD.search(line):
+        return False
+    if " / " in line:
+        segs = [s.strip() for s in line.split(" / ")]
+        return bool(segs) and all(0 < len(s) <= 50 for s in segs)
+    return len(line.split()) <= 8
+
 
 def _is_boilerplate(line: str) -> bool:
     # Order-independent: these line types are running headers/footers/disclaimers wherever they sit.
     if _HEADER.search(line) or _PORTAL.search(line) or _DISCLAIMER.search(line):
         return True
+    if _HEADER_TAIL.match(line) or _CROSS_PROMO.match(line):
+        return True
+    if _PB_PREAMBLE.search(line) or _INST_USE.search(line):
+        return True
     if _DATE_LINE.match(line) or _PAGENUM.match(line):
+        return True
+    if _is_sub_banner(line):
         return True
     return bool(_BULLET_ONLY.match(line))
 

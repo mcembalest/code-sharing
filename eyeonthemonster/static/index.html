@@ -123,17 +123,20 @@
     background: var(--accent);
     transition: width .25s ease;
   }
+  #status.running.active #progress-bar {
+    background: linear-gradient(90deg, var(--accent), #59a5a0, var(--accent));
+  }
   @keyframes pulse {
     70% { box-shadow: 0 0 0 8px rgba(31,122,140,0); }
     100% { box-shadow: 0 0 0 0 rgba(31,122,140,0); }
   }
 
   #answer-slot {
-    background: #fff;
-    border-top: 2px solid var(--accent);
+    background: linear-gradient(180deg, #f7fbfb 0%, #fff 100%);
+    border-top: 3px solid var(--accent);
     border-bottom: 1px solid var(--line);
-    padding: 1rem 0 1.15rem;
-    margin: 1.15rem 0 1.85rem;
+    padding: 1.05rem 1rem 1.2rem;
+    margin: 1.15rem -1rem 1.85rem;
   }
   #answer-slot[hidden] { display: none; }
   .answer-label {
@@ -197,9 +200,20 @@
   .primary { display: grid; gap: .85rem; }
   .finding { scroll-margin-top: calc(var(--bar-h) + 16px); }
   .primary-finding {
-    padding: .8rem 0 1rem;
+    padding: .8rem .85rem 1rem;
     border-top: 1px solid var(--line);
-    background: #fff;
+    border-left: 3px solid var(--accent);
+    background: #fbfdfd;
+  }
+  .primary-finding::before {
+    content: "Primary";
+    display: inline-block;
+    margin-bottom: .35rem;
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
   }
   .primary-finding figure { margin-top: .15rem; }
   blockquote {
@@ -258,6 +272,7 @@
     text-overflow: ellipsis;
   }
   button.chip { cursor: pointer; }
+  button.chip:hover { border-color: var(--accent); background: var(--accent-soft); }
   .chip.missing { color: var(--warn); border-color: #f1c79f; }
 
   #trace {
@@ -308,32 +323,55 @@
   }
   #trace-cost .cost-meta b { color: #e9ecef; font-weight: 600; }
   #trace-list { flex: 1 1 auto; overflow: auto; padding: .85rem; }
-  .ev.usage { color: #5d6670; }
-  .ev.usage .ev-cost { color: var(--accent); font-weight: 600; }
-  .ev .ev-latency { float: right; color: #94a0a8; font-weight: 500; font-variant-numeric: tabular-nums; }
-  .ev {
+  /* Turn card: groups one model decision (thought + tool calls) with the tool results it triggered.
+     The header carries the usage telemetry that previously lived in its own row. */
+  .turn-card {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    margin: .6rem 0;
+    background: #fff;
+    overflow: hidden;
+  }
+  .turn-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: .75rem;
+    padding: .4rem .7rem;
+    background: #f6f7f8;
+    border-bottom: 1px solid var(--line);
+    color: #5d6670;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+  .turn-header .turn-label { font-weight: 600; color: #2f3640; }
+  .turn-header .turn-stats { color: #5d6670; }
+  .turn-header .turn-cost { color: var(--accent); font-weight: 600; }
+  .turn-header.pending .turn-stats::before { content: '…'; color: #b5bcc2; }
+  .turn-body { padding: .35rem .75rem .5rem; }
+  .turn-body .ev {
+    border: none;
+    padding: .22rem 0;
+    margin: 0;
+    background: transparent;
+    overflow-wrap: anywhere;
+    font-size: 13px;
+  }
+  .turn-body .ev.thought { color: var(--muted); }
+  .turn-body .ev.tool_call { color: #2f3640; }
+  .turn-body .ev.tool_result { color: #4a6b54; }
+  .turn-body .ev :first-child { margin-top: 0; }
+  .turn-body .ev :last-child { margin-bottom: 0; }
+  /* Standalone events that fall outside a turn card (done/error). */
+  .ev.standalone {
     border-top: 1px solid var(--line);
     padding: .55rem 0;
-    margin: 0;
     background: #fff;
     overflow-wrap: anywhere;
   }
-  .ev :first-child { margin-top: 0; }
-  .ev :last-child { margin-bottom: 0; }
-  .ev-head {
-    display: flex;
-    justify-content: space-between;
-    gap: .5rem;
-    color: var(--muted);
-    font-size: 11px;
-    margin-bottom: .2rem;
-  }
-  .tool_call { border-color: var(--accent); }
-  .tool_result { border-color: #9eb3a6; }
-  .thought { color: var(--muted); background: transparent; }
-  .done { border-color: var(--ok); }
-  .error { border-color: var(--danger); color: var(--danger); }
-  .ev.flash { animation: flash 1.2s ease; }
+  .ev.standalone.done { border-color: var(--ok); }
+  .ev.standalone.error { border-color: var(--danger); color: var(--danger); }
+  .turn-card.flash, .ev.flash { animation: flash 1.2s ease; }
   @keyframes flash {
     0% { background: #fff4cf; }
     100% { background: #fff; }
@@ -348,19 +386,37 @@
     #status { grid-template-columns: auto minmax(0, 1fr); }
     #tool-text { grid-column: 2; }
     #trace { width: 100%; }
-    .primary-finding { padding: .65rem; }
+    .primary-finding { padding: .65rem .7rem; }
+    #answer-slot { margin-left: 0; margin-right: 0; }
   }
+  /* Clarification banner — only shown when the agent calls ask_user. Sits between the input bar
+     and the report; muted amber so it reads as "needs your input" without alarming. */
+  #ask-banner {
+    display: none;
+    margin: .55rem 1rem 0;
+    padding: .7rem .9rem;
+    border: 1px solid #e0c98a;
+    border-left: 3px solid #c89841;
+    background: #fdf6e3;
+    border-radius: 5px;
+    font-size: 13px;
+    color: #4a3f1d;
+  }
+  #ask-banner.show { display: block; }
+  #ask-banner .ask-q { font-weight: 600; margin-bottom: .25rem; color: #2f2611; }
+  #ask-banner .ask-why { color: #6e5d2f; font-size: 12px; }
+  #ask-banner .ask-hint { color: #8a7644; font-size: 11px; margin-top: .35rem; font-style: italic; }
 </style>
 
 <div id="bar">
   <div id="brand">Eye on the Monster</div>
   <input id="q" placeholder="Ask about the corpus">
   <button id="run" onclick="go()">Run</button>
-  <button id="copy-md" class="ghost" disabled>Copy MD</button>
   <button id="download-pdf" class="ghost" disabled>Download PDF</button>
   <button id="toggle" class="ghost" aria-expanded="false">Agent trace &#9656;</button>
 </div>
 
+<div id="ask-banner" role="status" aria-live="polite"></div>
 <main id="report"></main>
 <aside id="trace" aria-label="Agent trace">
   <div id="trace-cost">
@@ -425,7 +481,8 @@ function updateCostPanel(ev) {
     if (costElapsedTimer) { clearInterval(costElapsedTimer); costElapsedTimer = null; }
     if (ev.cost_total != null) $('cost-big').textContent = fmtCost(ev.cost_total);
     $('cost-big').classList.remove('estimate'); // reconciled to the SDK's authoritative total
-    if (ev.num_turns != null) $('cost-turns').textContent = fmtNum(ev.num_turns);
+    // Intentionally not reconciling cost-turns to ev.num_turns: the SDK counts every message
+    // (assistant + tool_result), while the trace cards count model decisions. Keep them aligned.
     if (ev.duration_ms != null) $('cost-elapsed').textContent = fmtMs(ev.duration_ms);
   }
 }
@@ -433,6 +490,14 @@ let currentTool = '';
 let coverage = null;
 let stick = true;
 let runFinished = false;
+let progressPct = 0;
+// Trace turn-card grouping state. A "turn" = one model decision (thought + tool_calls) plus the
+// tool_results that follow it. We open a new card when a thought/tool_call arrives after a
+// usage/done boundary; the usage event fills the card header (it arrives at the END of the
+// model's emission, so we render a placeholder header and patch it when usage lands).
+let currentCard = null;       // { el, body, headerEl, num }
+let currentTurnNum = 0;
+let nextEventStartsCard = true;
 
 function syncBarHeight() {
   document.documentElement.style.setProperty('--bar-h', $('bar').offsetHeight + 'px');
@@ -472,19 +537,31 @@ function resetReport() {
   answerText = '';
   reportEvents = [];
   coverage = null;
+  progressPct = 0;
   setExportEnabled(false);
 }
 
 function setExportEnabled(enabled) {
-  $('copy-md').disabled = !enabled;
   $('download-pdf').disabled = !enabled;
 }
 
 function setStatus(state, text, toolText = '') {
   statusEl.hidden = false;
-  statusEl.className = state || '';
+  statusEl.className = [state || '', state === 'running' && progressPct > 0 ? 'active' : ''].filter(Boolean).join(' ');
   $('status-text').textContent = text;
   $('tool-text').textContent = toolText;
+}
+
+function setProgress(pct) {
+  progressPct = Math.max(0, Math.min(100, Number(pct) || 0));
+  $('progress-bar').style.width = progressPct + '%';
+  if (!statusEl.hidden && statusEl.classList.contains('running')) statusEl.classList.add('active');
+}
+
+function bumpProgress(delta = 6) {
+  if (progressPct >= 92) return;
+  const eased = progressPct + ((92 - progressPct) * 0.12);
+  setProgress(Math.max(progressPct + delta, eased));
 }
 
 function updateProgressFromSummary(summary) {
@@ -492,8 +569,30 @@ function updateProgressFromSummary(summary) {
   if (!m) return;
   coverage = { inspected: Number(m[1]), total: Number(m[2]) };
   const pct = coverage.total ? Math.round((coverage.inspected / coverage.total) * 100) : 0;
-  $('progress-bar').style.width = pct + '%';
+  setProgress(pct);
   setStatus('running', `Inspected ${coverage.inspected}/${coverage.total} issues`, currentTool ? `Current tool: ${currentTool}` : '');
+}
+
+function updateProgressFromTrace(ev) {
+  if (ev.type === 'tool_call') {
+    bumpProgress(3);
+    return;
+  }
+  if (ev.type !== 'tool_result') return;
+
+  if (String(ev.summary || '').match(/(\d+)\/(\d+)\s+inspected/i)) {
+    updateProgressFromSummary(ev.summary);
+    return;
+  }
+  if (ev.name === 'enumerate' && ev.coverage_total != null) {
+    const surfaced = Number(ev.surfaced || 0);
+    const total = Number(ev.coverage_total || 0);
+    const pct = total ? Math.round((surfaced / total) * 100) : progressPct;
+    setProgress(Math.max(progressPct, Math.min(88, pct)));
+    setStatus('running', `Enumerated ${fmtNum(surfaced)}/${fmtNum(total)} tagged pages`, currentTool ? `Current tool: ${currentTool}` : '');
+    return;
+  }
+  bumpProgress(5);
 }
 
 function newSection(title) {
@@ -615,23 +714,33 @@ function traceMarkdown(ev) {
   const name = normalizeToolName(ev.name);
   if (ev.type === 'tool_call') return `**→ ${name}** \`${JSON.stringify(ev.args || {})}\``;
   if (ev.type === 'tool_result') return `**← ${name}** - ${ev.summary || ''}`;
-  if (ev.type === 'usage') {
-    const ctx = ev.context_tokens != null ? ev.context_tokens
-      : (ev.input_tokens || 0) + (ev.cache_read_tokens || 0) + (ev.cache_write_tokens || 0);
-    const io = `${fmtNum(ctx)} ctx / ${fmtNum(ev.output_tokens)} out`;
-    const cache = (ev.cache_read_tokens || ev.cache_write_tokens)
-      ? ` · cache ${fmtNum(ev.cache_read_tokens)}r/${fmtNum(ev.cache_write_tokens)}w` : '';
-    return `LLM turn — ${io}${cache} · <span class="ev-cost">+${fmtCost(ev.turn_cost)}</span> (Σ ${fmtCost(ev.cost_total)})`;
-  }
   if (ev.type === 'error') return `**Error:** ${ev.text || ''}`;
   if (ev.type === 'done') return ev.is_error ? '**Run ended with errors.**' : '**Run complete.**';
   return ev.text || '';
 }
 
+// Render the turn-card header content from a usage event. Pulls cost/latency/tokens/cache out of
+// the usage event so it can live in the card header instead of as its own row.
+function turnHeaderHTML(turnNum, ev) {
+  if (!ev) {
+    return `<span class="turn-label">Turn #${turnNum}</span><span class="turn-stats">awaiting usage</span>`;
+  }
+  const ctx = ev.context_tokens != null ? ev.context_tokens
+    : (ev.input_tokens || 0) + (ev.cache_read_tokens || 0) + (ev.cache_write_tokens || 0);
+  const latency = ev.latency_ms != null ? `${fmtMs(ev.latency_ms)} · ` : '';
+  const io = `${fmtNum(ctx)} ctx / ${fmtNum(ev.output_tokens)} out`;
+  const cache = (ev.cache_read_tokens || ev.cache_write_tokens)
+    ? ` · cache ${fmtNum(ev.cache_read_tokens)}r/${fmtNum(ev.cache_write_tokens)}w` : '';
+  const stats = `${latency}${io}${cache} · <span class="turn-cost">+${fmtCost(ev.turn_cost)}</span> (Σ ${fmtCost(ev.cost_total)})`;
+  return `<span class="turn-label">Turn #${turnNum}</span><span class="turn-stats">${stats}</span>`;
+}
+
 function sourceParts(src) {
-  const idx = String(src || '').indexOf(':');
-  if (idx < 0) return { name: normalizeToolName(src), detail: '' };
-  return { name: normalizeToolName(src.slice(0, idx)), detail: src.slice(idx + 1) };
+  const raw = String(src || '').trim();
+  const idx = raw.indexOf(':');
+  if (idx >= 0) return { name: normalizeToolName(raw.slice(0, idx)), detail: raw.slice(idx + 1) };
+  const parts = raw.split(/\s+/, 2);
+  return { name: normalizeToolName(parts[0]), detail: raw.slice(parts[0].length).trim() };
 }
 
 function findTraceForSource(src) {
@@ -639,12 +748,18 @@ function findTraceForSource(src) {
   const candidates = traceEvents.filter(ev => normalizeToolName(ev.name) === name);
   if (!candidates.length) return null;
   const tokens = detail.toLowerCase().replace(/['"]/g, '').split(/[,\s]+/).filter(t => t.length > 2);
-  if (!tokens.length) return candidates[0];
+  if (!tokens.length) return candidates[candidates.length - 1];
+  let best = null;
+  let bestScore = 0;
   for (const ev of candidates) {
     const hay = JSON.stringify(ev.args || {}).toLowerCase() + ' ' + String(ev.summary || ev.text || '').toLowerCase();
-    if (tokens.some(t => hay.includes(t))) return ev;
+    const score = tokens.reduce((n, t) => n + (hay.includes(t) ? 1 : 0), 0);
+    if (score > bestScore) {
+      best = ev;
+      bestScore = score;
+    }
   }
-  return candidates[0];
+  return best || candidates[candidates.length - 1];
 }
 
 function openTraceForSource(src, chip) {
@@ -664,18 +779,85 @@ function openTraceForSource(src, chip) {
   });
 }
 
+function onAsk(ev) {
+  // The agent decided clarifying would materially help. Surface the question above the report
+  // and focus the search input so the user can refine + re-run. We do NOT auto-edit their query
+  // — they may want to scrap it entirely.
+  const banner = $('ask-banner');
+  const why = ev.why ? `<div class="ask-why">${esc(ev.why)}</div>` : '';
+  banner.innerHTML =
+    `<div class="ask-q">${esc(ev.question || 'Clarification needed')}</div>` +
+    why +
+    `<div class="ask-hint">Refine your query above and click Run again.</div>`;
+  banner.classList.add('show');
+  $('q').focus();
+  $('q').select();
+}
+
+function openTurnCard() {
+  currentTurnNum += 1;
+  const card = document.createElement('div');
+  card.className = 'turn-card';
+  const headerEl = document.createElement('div');
+  headerEl.className = 'turn-header pending';
+  headerEl.innerHTML = turnHeaderHTML(currentTurnNum, null);
+  const body = document.createElement('div');
+  body.className = 'turn-body';
+  card.appendChild(headerEl);
+  card.appendChild(body);
+  $('trace-list').appendChild(card);
+  currentCard = { el: card, body, headerEl, num: currentTurnNum };
+  return currentCard;
+}
+
+function appendEventRow(ev, parent) {
+  const md = traceMarkdown(ev);
+  if (!md) return null;
+  const d = document.createElement('div');
+  d.className = 'ev ' + (ev.type || 'trace');
+  if (ev.id != null) d.id = 'trace-ev-' + ev.id;
+  d.innerHTML = marked.parse(md);
+  parent.appendChild(d);
+  return d;
+}
+
 function onTrace(ev) {
   updateCostPanel(ev);
-  const md = traceMarkdown(ev);
-  if (md) {
-    const d = document.createElement('div');
-    d.className = 'ev ' + (ev.type || 'trace');
-    if (ev.id != null) d.id = 'trace-ev-' + ev.id;
-    const latency = ev.latency_ms != null ? `<span class="ev-latency">${fmtMs(ev.latency_ms)}</span>` : '';
-    const head = `<div class="ev-head">${latency}<span>#${esc(ev.id ?? '')}</span><span>${esc(normalizeToolName(ev.name || ev.type || 'trace'))}</span></div>`;
-    d.innerHTML = head + marked.parse(md);
-    $('trace-list').appendChild(d);
-    ev.el = d;
+  let elForEvent = null;
+  if (ev.type === 'usage') {
+    // Usage fires at the END of an AssistantMessage; the card is already open and accumulating
+    // events from that same model turn. Patch its header in place.
+    if (!currentCard) openTurnCard();
+    currentCard.headerEl.classList.remove('pending');
+    currentCard.headerEl.innerHTML = turnHeaderHTML(currentCard.num, ev);
+    elForEvent = currentCard.headerEl;
+    // Tool_results that arrive after usage still belong to THIS card (they're the results of this
+    // turn's calls). The next thought/tool_call signals a new model decision → new card.
+    nextEventStartsCard = true;
+  } else if (ev.type === 'thought' || ev.type === 'tool_call') {
+    if (nextEventStartsCard || !currentCard) openTurnCard();
+    nextEventStartsCard = false;
+    elForEvent = appendEventRow(ev, currentCard.body);
+  } else if (ev.type === 'tool_result') {
+    if (!currentCard) openTurnCard();
+    elForEvent = appendEventRow(ev, currentCard.body);
+  } else if (ev.type === 'done' || ev.type === 'error') {
+    const md = traceMarkdown(ev);
+    if (md) {
+      const d = document.createElement('div');
+      d.className = 'ev standalone ' + ev.type;
+      if (ev.id != null) d.id = 'trace-ev-' + ev.id;
+      d.innerHTML = marked.parse(md);
+      $('trace-list').appendChild(d);
+      elForEvent = d;
+    }
+  } else {
+    // Unknown event types fall through into the current card body so we never silently drop them.
+    if (!currentCard) openTurnCard();
+    elForEvent = appendEventRow(ev, currentCard.body);
+  }
+  if (elForEvent) {
+    ev.el = elForEvent;
     traceEvents.push(ev);
     $('trace-list').scrollTop = $('trace-list').scrollHeight;
   }
@@ -683,15 +865,13 @@ function onTrace(ev) {
     currentTool = normalizeToolName(ev.name);
     setStatus('running', coverage ? `Inspected ${coverage.inspected}/${coverage.total} issues` : 'Running', `Current tool: ${currentTool}`);
   }
-  if (ev.type === 'tool_result') {
-    updateProgressFromSummary(ev.summary);
-  }
+  updateProgressFromTrace(ev);
   if (ev.type === 'done') {
     $('run').disabled = false;
     const label = ev.is_error ? 'Run ended with errors' : 'Run complete';
     setStatus(ev.is_error ? 'error' : 'done', label, coverage ? `Inspected ${coverage.inspected}/${coverage.total} issues` : '');
     if (!ev.is_error && (!coverage || coverage.total === 0 || coverage.inspected >= coverage.total)) {
-      $('progress-bar').style.width = '100%';
+      setProgress(100);
     }
   }
   if (ev.type === 'error') {
@@ -715,6 +895,11 @@ function go() {
   traceEvents = [];
   currentTool = '';
   runFinished = false;
+  currentCard = null;
+  currentTurnNum = 0;
+  nextEventStartsCard = true;
+  $('ask-banner').classList.remove('show');
+  $('ask-banner').innerHTML = '';
   $('run').disabled = true;
   stick = true;
   setStatus('running', 'Starting', '');
@@ -723,6 +908,7 @@ function go() {
     const ev = JSON.parse(e.data);
     if (ev.lane === 'report') onReport(ev);
     else if (ev.lane === 'trace') onTrace(ev);
+    else if (ev.lane === 'ask') onAsk(ev);
   };
   current.addEventListener('done', () => {
     runFinished = true;
@@ -781,13 +967,6 @@ function buildPdfPayload() {
     })),
   };
 }
-
-$('copy-md').onclick = async () => {
-  const md = buildMarkdown();
-  await navigator.clipboard.writeText(md);
-  $('copy-md').textContent = 'Copied';
-  setTimeout(() => { $('copy-md').textContent = 'Copy MD'; }, 1100);
-};
 
 $('download-pdf').onclick = async () => {
   const button = $('download-pdf');

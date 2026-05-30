@@ -1,20 +1,39 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import secrets as _secrets
 from io import BytesIO
 from pathlib import Path
 
 import fitz
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from agent import run_agent
 
 
 ROOT = Path(__file__).resolve().parent
 PDF = fitz.open(ROOT / "Eye on the Monster.pdf")
-app = FastAPI()
+
+_basic = HTTPBasic(auto_error=False)
+
+
+def _require_password(creds: HTTPBasicCredentials | None = Depends(_basic)) -> None:
+    expected = os.environ.get("APP_PASSWORD")
+    if not expected:
+        return
+    if creds is None or not _secrets.compare_digest(creds.password, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+
+app = FastAPI(dependencies=[Depends(_require_password)])
 
 PAGE_W = 612
 PAGE_H = 792

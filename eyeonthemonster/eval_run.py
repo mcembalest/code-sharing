@@ -55,7 +55,6 @@ def parse_enumerate_summary(summary: str) -> dict[str, Any] | None:
 
 
 async def collect(query: str) -> dict[str, Any]:
-    coverage = []
     tool_calls = []
     tool_results = []
     enumerate_runs = []
@@ -81,8 +80,6 @@ async def collect(query: str) -> dict[str, Any]:
         if event.get("type") == "tool_result":
             summary = event.get("summary") or ""
             tool_results.append({"name": event.get("name"), "summary": summary})
-            if event.get("name") == "coverage_status":
-                coverage.append(summary)
             if event.get("name") == "enumerate":
                 # Prefer the structured accounting now emitted on the event; fall back to parsing
                 # the summary string only if those fields are absent (older agent build).
@@ -111,7 +108,6 @@ async def collect(query: str) -> dict[str, Any]:
         "tool_results": tool_results,
         "enumerate_runs": enumerate_runs,
         "report_items": report_items,
-        "coverage_status": coverage,
         "committed_pages": sorted(committed_pages),
         "committed_page_count": len(committed_pages),
         "cited_pages": sorted(cited_pages),
@@ -171,12 +167,6 @@ async def main() -> None:
                 f"coverage_total={run['coverage_total']}, surfaced={run['surfaced']}, "
                 f"below_floor={run['below_floor']}, primary={run['primary']}, floor={run['floor']}"
             )
-    else:
-        print("- none")
-    print("coverage_status trajectory:")
-    if result["coverage_status"]:
-        for item in result["coverage_status"]:
-            print(f"- {item}")
     else:
         print("- none")
     print(f"report items: {result['report_items']}")

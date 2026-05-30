@@ -94,7 +94,7 @@
 {"page": 105, "high_level": ["corporates-earnings", "markets-investing", "politics-policy"], "granular": ["arbitrage-strategies", "growth-versus-value-stocks", "large-cap-value", "m-a-transaction-volumes", "private-equity", "quantitative-equity-management"]}
 {"page": 106, "high_level": ["labor-consumer-housing", "macro-growth-inflation", "markets-investing"], "granular": ["asset-allocation", "consumer-spending", "inflation", "investment-strategy"]}
 {"page": 107, "high_level": ["energy", "fiscal-debt", "macro-growth-inflation", "other"], "granular": ["dubai-real-estate-debt", "economic-resilience", "fed-interest-rate-hikes", "inflation", "oil-supply-shocks", "united-arab-emirates-economy"]}
-{"page": 108, "high_level": ["energy", "global-regions-trade", "labor-consumer-housing", "macro-growth-inflation", "politics-policy"], "granular": ["asian-economic-growth", "geopolitical-risk-premia", "middle-east-demographics", "oecd", "us-dollar", "us-gdp-growth"]}
+{"page": 108, "high_level": ["energy", "global-regions-trade", "labor-consumer-housing", "macro-growth-inflation", "politics-policy"], "granular": ["asian-economic-growth", "demographics", "geopolitical-risk-premia", "oecd", "us-dollar", "us-gdp-growth"]}
 {"page": 109, "high_level": ["legal-governance", "other"], "granular": ["financial-compliance", "financial-disclosures", "private-offering-memoranda"]}
 {"page": 110, "high_level": ["banks-credit", "markets-investing", "politics-policy"], "granular": ["arbitrage-strategies", "european-redemption-fund", "hedge-fund-of-funds", "lbo-leverage", "non-public-security-valuation", "subprime-mortgages"]}
 {"page": 112, "high_level": ["banks-credit", "global-regions-trade", "labor-consumer-housing", "markets-investing", "politics-policy"], "granular": ["credit-rating-agency-regulations", "equity-returns", "european-equities", "niche-real-estate-sectors", "stock-buybacks", "subprime-mortgages"]}
@@ -543,7 +543,7 @@
 {"page": 568, "high_level": ["labor-consumer-housing", "macro-growth-inflation", "other", "politics-policy"], "granular": ["brazilian-economy", "commercial-real-estate", "household-income-dynamics", "office-sector-supply-and-demand", "tax-reform"]}
 {"page": 569, "high_level": ["energy", "global-regions-trade", "labor-consumer-housing", "markets-investing"], "granular": ["china-coal-consumption", "china-environmental-risks", "chinese-real-estate", "european-monetary-fund-proposal", "sulfur-dioxide-emissions"]}
 {"page": 570, "high_level": ["fiscal-debt", "global-regions-trade"], "granular": ["emerging-market-local-currency-bonds", "foreign-exchange-reserves", "sovereign-debt"]}
-{"page": 571, "high_level": ["fiscal-debt", "macro-growth-inflation", "politics-policy"], "granular": ["federal-tax-receipts", "manufacturing-pmi", "spending-based-fiscal-consolidation", "us-treasury-yields"]}
+{"page": 571, "high_level": ["fiscal-debt", "macro-growth-inflation", "politics-policy"], "granular": ["federal-tax-receipts", "it-budget-allocation", "manufacturing-pmi", "us-treasury-yields"]}
 {"page": 572, "high_level": ["corporates-earnings", "global-regions-trade", "markets-investing", "politics-policy"], "granular": ["arbitrage-strategies", "emerging-market-local-currency-bonds", "hedge-fund-of-funds", "m-a-activity", "us-corporate-cash-balances"]}
 {"page": 573, "high_level": ["energy", "healthcare-pandemic", "markets-investing", "other"], "granular": ["climate-change-cycles", "gene-therapy-development", "mrna-vaccine-technology", "sea-level-rise", "us-healthcare-spending"]}
 {"page": 574, "high_level": ["other"], "granular": ["american-recovery-and-reinvestment-act", "initial-public-offerings"]}
@@ -716,7 +716,7 @@
 {"page": 741, "high_level": ["banks-credit", "corporates-earnings", "fiscal-debt", "global-regions-trade"], "granular": ["capital-expenditure", "debt-to-gdp-ratio", "deleveraging", "entitlement-spending", "us-retail-sales"]}
 {"page": 742, "high_level": ["fiscal-debt", "macro-growth-inflation", "markets-investing"], "granular": ["college-scorecard", "ecb-bond-purchases", "european-peripheral-debt", "german-export-growth", "private-sector-debt"]}
 {"page": 743, "high_level": ["corporates-earnings", "labor-consumer-housing", "markets-investing"], "granular": ["labor-compensation-share", "megacap-tech-stock-valuation", "p-e-multiples", "profit-margins", "s-p-500"]}
-{"page": 744, "high_level": ["labor-consumer-housing", "macro-growth-inflation", "markets-investing", "other"], "granular": ["bank-preferred-stock", "clo-subordination", "high-yield-bonds", "middle-east-demographics", "qe2"]}
+{"page": 744, "high_level": ["labor-consumer-housing", "macro-growth-inflation", "markets-investing", "other"], "granular": ["bank-preferred-stock", "clo-subordination", "demographics", "high-yield-bonds", "qe2"]}
 {"page": 745, "high_level": ["banks-credit", "corporates-earnings", "fiscal-debt", "labor-consumer-housing", "markets-investing"], "granular": ["distressed-real-estate", "hedge-fund-of-funds", "m-a-transaction-volumes", "mezzanine-debt", "mortgage-backed-securities", "stock-correlation"]}
 {"page": 746, "high_level": ["banks-credit", "fiscal-debt", "macro-growth-inflation", "markets-investing", "other"], "granular": ["bovespa-index", "computing-infrastructure-cycles", "distressed-debt", "mobile-data-traffic", "mortgage-rates", "private-equity"]}
 {"page": 747, "high_level": ["energy", "fiscal-debt", "global-regions-trade", "macro-growth-inflation", "markets-investing"], "granular": ["emerging-market-debt", "enhanced-oil-recovery", "exchange-traded-funds", "real-effective-exchange-rate", "us-dollar-reserve-currency-status"]}
@@ -766,7 +766,7 @@
 {"page": 791, "high_level": ["energy", "other"], "granular": ["backup-power-capacity", "electricity-capacity-additions", "fukushima-nuclear-disaster", "nuclear-reactor-starts", "tsunami-risks"]}
 {"page": 792, "high_level": ["fiscal-debt", "global-regions-trade", "macro-growth-inflation", "markets-investing"], "granular": ["debt-monetization", "japanese-government-bonds-jgbs", "us-economic-recovery", "us-occupation-of-japan", "us-sovereign-debt-dynamics"]}
 {"page": 793, "high_level": ["energy", "markets-investing", "politics-policy"], "granular": ["asset-allocation", "desertec-project", "futures-positions", "geopolitical-risk", "liquefied-natural-gas-imports", "oil-spare-capacity"]}
-{"page": 794, "high_level": ["labor-consumer-housing", "other", "politics-policy"], "granular": ["geopolitical-risk", "middle-east-demographics", "shia-sunni-distribution", "wahhabism"]}
+{"page": 794, "high_level": ["labor-consumer-housing", "other", "politics-policy"], "granular": ["demographics", "geopolitical-risk", "shia-sunni-distribution", "wahhabism"]}
 {"page": 795, "high_level": ["energy", "healthcare-pandemic", "other"], "granular": ["fukushima-nuclear-disaster", "national-containment-measures", "seawater-cooling-injections", "spent-fuel-pools"]}
 {"page": 796, "high_level": ["energy", "other"], "granular": ["nuclear-energy", "nuclear-generation-capacity-factors", "nuclear-meltdown-risk", "nuclear-safety-regulations", "radioactive-isotopes"]}
 {"page": 797, "high_level": ["energy", "global-regions-trade", "macro-growth-inflation", "markets-investing"], "granular": ["asian-economic-growth", "free-trade-agreements", "midstream-pipeline-investments", "s-p-500", "shale-gas-production"]}
@@ -866,7 +866,7 @@
 {"page": 891, "high_level": ["fiscal-debt", "other", "politics-policy"], "granular": ["debt-prioritization", "federal-revenue-raisers", "inventory-liquidation", "tax-reform", "us-federal-spending-cuts"]}
 {"page": 892, "high_level": ["banks-credit", "fiscal-debt", "markets-investing", "politics-policy"], "granular": ["central-bank-excess-reserves", "fiscal-austerity", "money-market-fund-runs", "progressive-taxation-policy", "sovereign-credit-rating-downgrade"]}
 {"page": 893, "high_level": ["commodities-resources", "fiscal-debt", "global-regions-trade", "macro-growth-inflation"], "granular": ["debt-monetization", "debt-prioritization", "federal-reserve-balance-sheet", "gold-reserves", "us-dollar-reserve-currency-status"]}
-{"page": 894, "high_level": ["fiscal-debt", "politics-policy"], "granular": ["budget-control-act", "discretionary-spending", "military-defense-spending", "spending-based-fiscal-consolidation", "us-budget-deficit", "us-public-debt-to-gdp"]}
+{"page": 894, "high_level": ["fiscal-debt", "healthcare-pandemic", "politics-policy"], "granular": ["budget-control-act", "discretionary-spending", "industry-consolidation", "military-defense-spending", "us-budget-deficit", "us-public-debt-to-gdp"]}
 {"page": 895, "high_level": ["banks-credit", "commodities-resources", "global-regions-trade", "labor-consumer-housing", "macro-growth-inflation"], "granular": ["deleveraging", "european-financial-stability-facility", "european-monetary-union", "eurozone-employment", "real-price-of-gold"]}
 {"page": 896, "high_level": ["corporates-earnings", "fiscal-debt", "global-regions-trade", "labor-consumer-housing", "markets-investing"], "granular": ["fiscal-austerity", "global-corporate-earnings", "labor-compensation-share", "private-sector-debt", "s-p-500", "us-dollar"]}
 {"page": 897, "high_level": ["fiscal-debt", "markets-investing"], "granular": ["budget-control-act", "cbo-debt-projections", "dod-critical-minerals-funding", "us-budget-deficit"]}
@@ -1278,7 +1278,7 @@
 {"page": 1303, "high_level": ["fiscal-debt", "labor-consumer-housing", "other", "politics-policy"], "granular": ["401-k-plans", "automatic-contribution-enrollment", "deferred-compensation-taxes", "early-retirement", "us-federal-debt"]}
 {"page": 1304, "high_level": ["fiscal-debt", "labor-consumer-housing", "macro-growth-inflation", "politics-policy"], "granular": ["401-k-plans", "home-ownership-down-payments", "household-savings-rates", "means-testing-social-security", "retirement-demographic-modeling"]}
 {"page": 1305, "high_level": ["fiscal-debt", "labor-consumer-housing", "markets-investing", "politics-policy"], "granular": ["early-retirement", "effective-tax-rates", "equity-returns", "income-tax-brackets", "medicare-surtax"]}
-{"page": 1306, "high_level": ["labor-consumer-housing", "politics-policy"], "granular": ["delayed-retirement-savings", "estate-tax-planning", "wealth-accumulation"]}
+{"page": 1306, "high_level": ["labor-consumer-housing", "politics-policy"], "granular": ["estate-tax-planning", "retirement-savings", "wealth-accumulation"]}
 {"page": 1307, "high_level": ["global-regions-trade", "labor-consumer-housing"], "granular": ["asian-high-net-worth-wealth", "household-wealth-effect", "retirement-demographic-modeling"]}
 {"page": 1308, "high_level": ["fiscal-debt", "labor-consumer-housing", "markets-investing"], "granular": ["early-retirement", "imf-precautionary-credit-lines", "portfolio-risk", "us-federal-debt"]}
 {"page": 1309, "high_level": ["corporates-earnings", "macro-growth-inflation", "markets-investing", "politics-policy"], "granular": ["401-k-plans", "asset-allocation", "free-cash-flow", "household-savings-rates", "pre-tax-compounding"]}
@@ -1306,7 +1306,7 @@
 {"page": 1331, "high_level": ["labor-consumer-housing", "legal-governance", "politics-policy"], "granular": ["early-retirement", "financial-disclosures", "us-federal-spending-cuts"]}
 {"page": 1332, "high_level": ["corporates-earnings", "global-regions-trade", "labor-consumer-housing", "macro-growth-inflation", "markets-investing"], "granular": ["corporate-profits", "european-equities", "labor-compensation-share", "us-economic-recovery", "us-gdp-growth", "yield-curve"]}
 {"page": 1333, "high_level": ["banks-credit", "corporates-earnings", "global-regions-trade", "labor-consumer-housing", "macro-growth-inflation", "markets-investing"], "granular": ["chinese-economic-growth", "chinese-real-estate", "equity-valuations", "european-equities", "free-cash-flow", "shadow-banking"]}
-{"page": 1334, "high_level": ["corporates-earnings", "markets-investing"], "granular": ["cloud-computing-valuations", "long-short-technology-funds", "megacap-tech-stock-valuation", "return-dispersion", "tech-sector-acquisitions"]}
+{"page": 1334, "high_level": ["corporates-earnings", "markets-investing", "technology-innovation"], "granular": ["cloud-services-demand", "long-short-technology-funds", "megacap-tech-stock-valuation", "return-dispersion", "tech-sector-acquisitions"]}
 {"page": 1335, "high_level": ["fiscal-debt", "global-regions-trade", "labor-consumer-housing", "other"], "granular": ["european-car-sales", "european-peripheral-debt", "eurozone-employment", "import-collapse"]}
 {"page": 1336, "high_level": ["fiscal-debt", "global-regions-trade", "macro-growth-inflation", "other"], "granular": ["fiscal-stimulus", "poverty-alleviation", "sub-saharan-africa-gdp", "supply-chain-disruptions"]}
 {"page": 1337, "high_level": ["legal-governance", "markets-investing"], "granular": ["financial-compliance", "financial-disclosures", "investment-disclaimers"]}
@@ -1844,7 +1844,7 @@
 {"page": 1869, "high_level": ["legal-governance", "markets-investing"], "granular": ["financial-compliance", "financial-disclosures", "investment-disclaimers"]}
 {"page": 1870, "high_level": ["banks-credit", "global-regions-trade", "markets-investing"], "granular": ["bank-of-japan-asset-purchases", "ecb-bond-purchases", "global-equity-returns", "msci-europe-index", "us-equity-market"]}
 {"page": 1871, "high_level": ["commodities-resources", "global-regions-trade", "macro-growth-inflation", "markets-investing"], "granular": ["business-fixed-investment", "commodity-supercycle", "labor-productivity", "stock-buybacks", "us-dollar"]}
-{"page": 1872, "high_level": ["labor-consumer-housing", "macro-growth-inflation", "other", "politics-policy"], "granular": ["core-pce-deflator", "demographics", "federal-reserve-policy", "inflation", "labor-force-participation"]}
+{"page": 1872, "high_level": ["labor-consumer-housing", "macro-growth-inflation", "other", "politics-policy"], "granular": ["core-pce-deflator", "federal-reserve-policy", "inflation", "labor-force-participation"]}
 {"page": 1873, "high_level": ["labor-consumer-housing", "macro-growth-inflation", "other", "politics-policy"], "granular": ["anti-establishment-political-parties", "business-formation", "consumer-spending", "fed-interest-rate-hikes", "us-gdp-growth"]}
 {"page": 1874, "high_level": ["global-regions-trade", "macro-growth-inflation", "markets-investing", "other"], "granular": ["basketball-player-analytics", "european-equities", "sports-franchise-valuations", "us-economic-recovery"]}
 {"page": 1875, "high_level": ["markets-investing", "other"], "granular": ["basketball-player-analytics", "data-visualization", "model-estimated-value", "sports-franchise-valuations"]}
@@ -1874,22 +1874,22 @@
 {"page": 1899, "high_level": ["banks-credit", "macro-growth-inflation", "markets-investing"], "granular": ["bank-credit-growth", "chinese-economic-growth", "manufacturing-purchasing-managers-index", "s-p-500"]}
 {"page": 1900, "high_level": ["markets-investing", "other", "politics-policy"], "granular": ["asset-allocation", "eps-manipulation", "research-and-development-spending", "stock-buybacks", "user-created-value"]}
 {"page": 1902, "high_level": ["energy", "fiscal-debt", "labor-consumer-housing"], "granular": ["early-retirement", "energy-independence", "millennial-retirement-savings", "project-finance", "wealth-accumulation"]}
-{"page": 1903, "high_level": [], "granular": []}
-{"page": 1904, "high_level": ["fiscal-debt", "labor-consumer-housing", "markets-investing"], "granular": ["defined-benefit-plans", "delayed-retirement-savings", "entitlement-spending", "income-replacement-ratios", "s-p-500", "student-loan-debt"]}
+{"page": 1903, "high_level": ["labor-consumer-housing"], "granular": ["early-retirement", "retirement-savings"]}
+{"page": 1904, "high_level": ["fiscal-debt", "labor-consumer-housing", "markets-investing"], "granular": ["defined-benefit-plans", "entitlement-spending", "income-replacement-ratios", "retirement-savings", "s-p-500", "student-loan-debt"]}
 {"page": 1905, "high_level": ["labor-consumer-housing", "markets-investing"], "granular": ["asset-allocation", "early-retirement", "household-income-dynamics", "retirement-spending-smile", "us-home-prices"]}
 {"page": 1906, "high_level": ["energy", "healthcare-pandemic", "labor-consumer-housing", "macro-growth-inflation"], "granular": ["oil-supply-shock", "per-capita-health-expenditure", "retirement-demographic-modeling", "spousal-health-risk", "unemployment-rate"]}
 {"page": 1907, "high_level": ["energy", "fiscal-debt", "labor-consumer-housing", "markets-investing", "other"], "granular": ["equity-returns", "millennial-retirement-savings", "oecd", "stem-education-trends", "student-loan-debt", "us-labor-market"]}
 {"page": 1908, "high_level": ["banks-credit", "fiscal-debt", "labor-consumer-housing", "markets-investing"], "granular": ["asset-allocation", "central-bank-financial-repression", "defined-benefit-plans", "defined-contribution-plans", "demographics", "excess-volatility"]}
 {"page": 1909, "high_level": ["labor-consumer-housing", "macro-growth-inflation", "other"], "granular": ["automation-and-labor", "job-computerization", "labor-productivity", "median-household-income", "public-sector-employment-trends"]}
 {"page": 1910, "high_level": ["fiscal-debt", "other", "politics-policy"], "granular": ["cbo-debt-projections", "entitlement-spending", "military-defense-spending", "social-security-solvency", "us-life-expectancy", "us-public-debt-to-gdp"]}
-{"page": 1911, "high_level": [], "granular": []}
+{"page": 1911, "high_level": ["labor-consumer-housing"], "granular": ["early-retirement", "retirement-savings"]}
 {"page": 1912, "high_level": ["macro-growth-inflation", "markets-investing", "other", "politics-policy"], "granular": ["asset-allocation", "employer-matching-contributions", "estate-tax-planning", "long-term-care-costs", "private-college-tuition-costs", "tax-advantaged-retirement-accounts"]}
-{"page": 1913, "high_level": ["energy", "labor-consumer-housing", "macro-growth-inflation"], "granular": ["delayed-retirement-savings", "dual-class-share-structures", "energy-dependency", "household-savings-rates", "median-household-income"]}
+{"page": 1913, "high_level": ["energy", "labor-consumer-housing", "macro-growth-inflation"], "granular": ["dual-class-share-structures", "energy-dependency", "household-savings-rates", "median-household-income", "retirement-savings"]}
 {"page": 1914, "high_level": ["labor-consumer-housing", "other", "politics-policy"], "granular": ["compounding-savings-timeline", "corporate-tax-deferral", "early-retirement", "income-replacement-shortfall"]}
 {"page": 1915, "high_level": ["labor-consumer-housing", "macro-growth-inflation", "other", "politics-policy"], "granular": ["elder-care-expenses", "federal-income-tax", "household-wealth-effect", "long-term-care-costs", "private-college-tuition-costs"]}
-{"page": 1916, "high_level": ["energy", "global-regions-trade", "labor-consumer-housing", "markets-investing", "politics-policy"], "granular": ["asian-high-net-worth-wealth", "delayed-retirement-savings", "estate-tax-planning", "flood-mitigation", "generational-accounting"]}
-{"page": 1917, "high_level": ["labor-consumer-housing", "other", "politics-policy"], "granular": ["401-k-plans", "delayed-retirement-savings", "european-security-policy", "long-term-care-costs", "millennial-retirement-savings"]}
-{"page": 1918, "high_level": ["labor-consumer-housing", "markets-investing", "politics-policy"], "granular": ["charitable-contribution-limits", "deferred-compensation-taxes", "delayed-retirement-savings", "equity-returns", "taxpayer-wealth-transfers"]}
+{"page": 1916, "high_level": ["energy", "global-regions-trade", "labor-consumer-housing", "markets-investing", "politics-policy"], "granular": ["asian-high-net-worth-wealth", "estate-tax-planning", "flood-mitigation", "generational-accounting", "retirement-savings"]}
+{"page": 1917, "high_level": ["labor-consumer-housing", "other", "politics-policy"], "granular": ["401-k-plans", "european-security-policy", "long-term-care-costs", "millennial-retirement-savings", "retirement-savings"]}
+{"page": 1918, "high_level": ["labor-consumer-housing", "markets-investing", "politics-policy"], "granular": ["charitable-contribution-limits", "deferred-compensation-taxes", "equity-returns", "retirement-savings", "taxpayer-wealth-transfers"]}
 {"page": 1919, "high_level": ["fiscal-debt", "labor-consumer-housing", "macro-growth-inflation"], "granular": ["income-replacement-goals", "median-household-income", "student-loan-debt", "us-homeownership-rates"]}
 {"page": 1920, "high_level": ["labor-consumer-housing", "other"], "granular": ["case-study-methodology", "early-retirement", "wealth-accumulation"]}
 {"page": 1921, "high_level": ["labor-consumer-housing", "other"], "granular": ["case-study-methodology", "early-retirement", "wealth-accumulation"]}
@@ -1901,14 +1901,14 @@
 {"page": 1927, "high_level": ["banks-credit", "fiscal-debt", "markets-investing", "politics-policy"], "granular": ["asset-allocation", "central-bank-financial-repression", "concentrated-stock-risk", "federal-reserve-policy", "fiscal-drag"]}
 {"page": 1928, "high_level": ["fiscal-debt", "macro-growth-inflation", "politics-policy"], "granular": ["401-k-plans", "cost-of-living-adjustments", "cpi-inflation", "entitlement-spending", "means-testing-social-security"]}
 {"page": 1929, "high_level": ["fiscal-debt", "labor-consumer-housing", "markets-investing"], "granular": ["balanced-model-portfolios", "early-retirement", "retirement-wealth-depletion", "social-security-early-claim-discount"]}
-{"page": 1930, "high_level": ["labor-consumer-housing", "other"], "granular": ["career-transition", "compound-interest-tipping-points", "delayed-retirement-savings", "mid-career-retirement-catch-up"]}
+{"page": 1930, "high_level": ["labor-consumer-housing", "other"], "granular": ["career-transition", "compound-interest-tipping-points", "mid-career-retirement-catch-up", "retirement-savings"]}
 {"page": 1931, "high_level": ["fiscal-debt", "labor-consumer-housing", "macro-growth-inflation", "other", "politics-policy"], "granular": ["401-k-plans", "defined-contribution-plans", "household-savings-rates", "retirement-wealth-depletion", "spousal-survivor-benefits"]}
 {"page": 1932, "high_level": ["labor-consumer-housing", "macro-growth-inflation", "politics-policy"], "granular": ["401-k-plans", "early-retirement", "european-security-policy", "unemployment-rate"]}
 {"page": 1933, "high_level": ["fiscal-debt", "labor-consumer-housing", "markets-investing"], "granular": ["cannabis-investment-thesis", "demographic-debt-burden", "early-retirement", "social-security-benefits"]}
 {"page": 1934, "high_level": ["healthcare-pandemic", "labor-consumer-housing", "macro-growth-inflation", "markets-investing"], "granular": ["early-retirement", "family-emergency-expenses", "portfolio-risk", "unemployment-rate"]}
 {"page": 1935, "high_level": ["fiscal-debt", "labor-consumer-housing", "macro-growth-inflation", "markets-investing"], "granular": ["cpi-inflation", "drawdown-funds", "early-retirement", "social-security-benefits"]}
 {"page": 1936, "high_level": [], "granular": []}
-{"page": 1937, "high_level": [], "granular": []}
+{"page": 1937, "high_level": ["labor-consumer-housing"], "granular": ["early-retirement", "retirement-savings"]}
 {"page": 1938, "high_level": ["fiscal-debt", "labor-consumer-housing", "markets-investing", "politics-policy"], "granular": ["401-k-plans", "demographic-debt-burden", "early-retirement", "home-equity"]}
 {"page": 1939, "high_level": ["corporates-earnings", "labor-consumer-housing", "macro-growth-inflation", "markets-investing"], "granular": ["corporate-buyouts", "early-retirement", "home-equity", "remote-work-trends"]}
 {"page": 1940, "high_level": ["labor-consumer-housing", "markets-investing"], "granular": ["early-retirement", "equity-returns", "individual-stock-underperformance", "investment-strategy"]}
@@ -1921,7 +1921,7 @@
 {"page": 1947, "high_level": ["labor-consumer-housing"], "granular": ["early-retirement", "idiosyncratic-risk", "residential-real-estate-development", "retirement-asset-decumulation", "us-home-prices"]}
 {"page": 1948, "high_level": ["banks-credit", "labor-consumer-housing", "markets-investing", "other", "politics-policy"], "granular": ["401-k-plans", "employer-matching-contributions", "millennial-retirement-savings", "student-loan-repayment-plans", "target-date-fund-glide-paths"]}
 {"page": 1949, "high_level": ["banks-credit", "labor-consumer-housing", "other", "politics-policy"], "granular": ["charitable-contribution-limits", "employer-matching-contributions", "income-replacement-goals", "non-qualified-accounts", "tax-efficient-savings"]}
-{"page": 1950, "high_level": ["banks-credit", "labor-consumer-housing", "macro-growth-inflation", "markets-investing"], "granular": ["default-rates", "delayed-retirement-savings", "private-college-tuition-costs", "public-education-funding", "retirement-wealth-depletion"]}
+{"page": 1950, "high_level": ["banks-credit", "labor-consumer-housing", "macro-growth-inflation", "markets-investing"], "granular": ["default-rates", "private-college-tuition-costs", "public-education-funding", "retirement-savings", "retirement-wealth-depletion"]}
 {"page": 1951, "high_level": ["healthcare-pandemic", "labor-consumer-housing", "markets-investing", "other"], "granular": ["alzheimer-s-related-dementia-risk", "healthcare-spending-spikes", "home-equity", "long-term-care-costs", "retirement-wealth-depletion"]}
 {"page": 1952, "high_level": ["fiscal-debt", "labor-consumer-housing", "markets-investing", "other"], "granular": ["drawdown-funds", "long-term-care-costs", "medicare-premium-costs", "retirement-asset-protection", "underwriter-pricing-risk"]}
 {"page": 1953, "high_level": ["global-regions-trade", "labor-consumer-housing", "politics-policy"], "granular": ["affluent-demographic-cohorts", "asian-high-net-worth-wealth", "effective-tax-rates", "retirement-demographic-modeling"]}
@@ -1936,7 +1936,7 @@
 {"page": 1962, "high_level": ["corporates-earnings", "healthcare-pandemic", "labor-consumer-housing", "macro-growth-inflation"], "granular": ["affluent-demographic-cohorts", "bureau-of-labor-statistics-data", "international-pandemic-trajectories", "lifetime-earnings-curves", "wage-growth"]}
 {"page": 1963, "high_level": ["fiscal-debt", "markets-investing"], "granular": ["equity-returns", "mean-reversion-of-returns", "portfolio-risk", "s-p-500", "us-treasury-yields"]}
 {"page": 1964, "high_level": ["labor-consumer-housing", "markets-investing"], "granular": ["home-equity", "idiosyncratic-risk", "metropolitan-statistical-area-home-prices", "return-dispersion", "shiller-pe-ratio"]}
-{"page": 1965, "high_level": ["energy", "fiscal-debt", "healthcare-pandemic", "labor-consumer-housing"], "granular": ["delayed-retirement-savings", "divorce-financial-impact", "health-insurance-coverage", "household-debt", "oil-supply-shocks"]}
+{"page": 1965, "high_level": ["energy", "fiscal-debt", "healthcare-pandemic", "labor-consumer-housing"], "granular": ["divorce-financial-impact", "health-insurance-coverage", "household-debt", "oil-supply-shocks", "retirement-savings"]}
 {"page": 1966, "high_level": ["macro-growth-inflation", "other", "politics-policy"], "granular": ["alternative-minimum-tax", "capital-gains-tax", "cpi-inflation", "inflation", "long-term-care-costs"]}
 {"page": 1967, "high_level": ["banks-credit", "fiscal-debt", "labor-consumer-housing"], "granular": ["cost-of-living-adjustments", "default-rates", "defined-contribution-plans", "millennial-retirement-savings", "retirement-bibliography"]}
 {"page": 1968, "high_level": ["energy"], "granular": ["backup-thermal-capacity", "germany-energiewende", "grid-de-carbonization", "nuclear-power", "solar-and-wind-power", "utility-scale-energy-storage"]}
@@ -2058,11 +2058,11 @@
 {"page": 2088, "high_level": ["banks-credit", "fiscal-debt", "markets-investing", "politics-policy"], "granular": ["arbitrage-strategies", "distressed-debt", "financial-leverage", "hedge-fund-of-funds", "over-collateralized-loans"]}
 {"page": 2089, "high_level": ["markets-investing"], "granular": ["hedge-fund-of-funds"]}
 {"page": 2090, "high_level": ["banks-credit", "corporates-earnings", "markets-investing", "technology-innovation"], "granular": ["credit-spread-bottoming", "ebitda", "financial-leverage", "technology-sector-cash-reserves", "us-corporate-cash-balances"]}
-{"page": 2092, "high_level": ["banks-credit", "macro-growth-inflation", "markets-investing", "politics-policy"], "granular": ["additional-tier-1-capital", "cloud-computing-valuations", "negative-interest-rate-policy", "presidential-tax-plans", "recession-risk"]}
+{"page": 2092, "high_level": ["banks-credit", "macro-growth-inflation", "politics-policy", "technology-innovation"], "granular": ["additional-tier-1-capital", "cloud-services-demand", "negative-interest-rate-policy", "presidential-tax-plans", "recession-risk"]}
 {"page": 2093, "high_level": ["corporates-earnings", "global-regions-trade", "macro-growth-inflation", "markets-investing"], "granular": ["capital-expenditure", "earnings-revisions", "manufacturing-pmi", "s-p-500", "us-dollar"]}
 {"page": 2094, "high_level": ["corporates-earnings", "other"], "granular": ["corporate-write-downs", "earnings-expectations", "enterprise-value-to-sales-ratio", "gaap-vs-operating-earnings", "pro-forma-earnings-accounting"]}
 {"page": 2095, "high_level": ["banks-credit", "fiscal-debt", "macro-growth-inflation"], "granular": ["demonetization-and-negative-rates", "emerging-market-debt", "european-central-bank", "negative-interest-rate-policy", "usd-eur-exchange-rate"]}
-{"page": 2096, "high_level": ["fiscal-debt", "markets-investing", "other", "technology-innovation"], "granular": ["cloud-computing-valuations", "emerging-market-debt", "enterprise-value-to-sales-ratio", "ipo-performance", "us-equity-market"]}
+{"page": 2096, "high_level": ["fiscal-debt", "markets-investing", "other", "technology-innovation"], "granular": ["cloud-services-demand", "emerging-market-debt", "enterprise-value-to-sales-ratio", "ipo-performance", "us-equity-market"]}
 {"page": 2097, "high_level": ["global-regions-trade", "politics-policy"], "granular": ["asian-high-net-worth-wealth", "capital-gains-tax", "effective-tax-rates", "us-tax-policy"]}
 {"page": 2098, "high_level": ["banks-credit", "markets-investing"], "granular": ["additional-tier-1-capital", "convertible-bonds", "credit-default-swaps", "deutsche-bank", "us-banking-sector"]}
 {"page": 2099, "high_level": ["global-regions-trade", "labor-consumer-housing", "politics-policy"], "granular": ["china-wto-entry-impact", "dynamic-tax-scoring", "presidential-tax-plans", "protectionist-trade-policy", "us-manufacturing-employment"]}
@@ -2639,7 +2639,7 @@
 {"page": 2722, "high_level": ["labor-consumer-housing", "macro-growth-inflation", "politics-policy"], "granular": ["labor-compensation-share", "labor-displacement", "labor-productivity", "us-immigration-policy"]}
 {"page": 2723, "high_level": ["energy", "labor-consumer-housing", "politics-policy"], "granular": ["african-american-employment-impact", "labor-market-dynamics", "oil-supply-shocks", "us-immigration-policy", "wage-depression-studies"]}
 {"page": 2724, "high_level": ["fiscal-debt", "other", "politics-policy"], "granular": ["educational-attainment", "first-generation-college-students", "fiscal-impact-of-immigration", "project-finance"]}
-{"page": 2725, "high_level": ["labor-consumer-housing", "other", "politics-policy"], "granular": ["demographics", "educational-attainment", "us-immigration-policy"]}
+{"page": 2725, "high_level": ["labor-consumer-housing", "other", "politics-policy"], "granular": ["educational-attainment", "labor-force-participation", "us-immigration-policy"]}
 {"page": 2726, "high_level": ["labor-consumer-housing", "politics-policy"], "granular": ["foreign-born-labor", "foreign-policy", "h-1b-visa-policies", "labor-market-substitutability"]}
 {"page": 2727, "high_level": ["labor-consumer-housing", "politics-policy"], "granular": ["housing-affordability", "labor-mobility", "land-use-regulation", "wage-convergence", "zoning-restrictions"]}
 {"page": 2728, "high_level": ["fiscal-debt", "labor-consumer-housing", "politics-policy"], "granular": ["fiscal-drag", "labor-mobility", "land-use-regulation", "wage-convergence", "zoning-restrictions"]}
@@ -2828,7 +2828,7 @@
 {"page": 2917, "high_level": ["fiscal-debt", "healthcare-pandemic", "markets-investing"], "granular": ["bear-market-history", "equity-valuations", "net-equity-supply", "prescription-drug-price-legislation", "stock-buybacks"]}
 {"page": 2918, "high_level": ["fiscal-debt", "healthcare-pandemic", "markets-investing"], "granular": ["biotech-sector-valuation", "medicare-for-all", "medicare-part-d-drug-prices", "pharmaceutical-drug-development", "prescription-drug-price-legislation"]}
 {"page": 2919, "high_level": ["fiscal-debt", "markets-investing", "other", "politics-policy"], "granular": ["medicare-for-all", "political-ideology", "state-administered-capitalism", "stock-buybacks", "wealth-tax"]}
-{"page": 2920, "high_level": ["energy", "global-regions-trade", "markets-investing", "technology-innovation"], "granular": ["china-wto-entry-impact", "cloud-computing-valuations", "financial-services-technology-barriers", "intellectual-property-theft", "renewable-energy-subsidies"]}
+{"page": 2920, "high_level": ["energy", "global-regions-trade", "technology-innovation"], "granular": ["china-wto-entry-impact", "cloud-services-demand", "financial-services-technology-barriers", "intellectual-property-theft", "renewable-energy-subsidies"]}
 {"page": 2921, "high_level": ["global-regions-trade", "politics-policy"], "granular": ["pricing-services", "tariffs", "trade-dispute-research"]}
 {"page": 2922, "high_level": ["legal-governance", "markets-investing"], "granular": ["financial-compliance", "financial-disclosures", "investment-disclaimers"]}
 {"page": 2923, "high_level": ["macro-growth-inflation", "other", "politics-policy"], "granular": ["antitrust-regulations", "ftc-qualcomm-ruling", "tariff-war-escalation", "us-fertility-rates", "us-immigration-policy"]}
@@ -2961,7 +2961,7 @@
 {"page": 3060, "high_level": ["corporates-earnings", "global-regions-trade", "politics-policy"], "granular": ["antitrust-regulations", "big-tech-acquisitions", "effective-tax-rates", "foreign-revenue-exposure", "gig-economy-regulation"]}
 {"page": 3061, "high_level": ["energy", "global-regions-trade", "politics-policy"], "granular": ["bilateral-energy-trade", "digital-services-taxes", "gafa-tax", "pillar-ii-tax-framework", "tech-sector-foreign-currency-exposure", "user-created-value"]}
 {"page": 3062, "high_level": ["other", "technology-innovation"], "granular": ["ipo-performance", "marketplace-business-models", "software-as-a-service-model", "software-ipos", "venture-capital"]}
-{"page": 3063, "high_level": ["corporates-earnings", "markets-investing", "technology-innovation"], "granular": ["cloud-computing-valuations", "corporate-it-spending", "ipo-performance", "private-equity", "unprofitable-companies"]}
+{"page": 3063, "high_level": ["corporates-earnings", "markets-investing", "technology-innovation"], "granular": ["cloud-services-demand", "corporate-it-spending", "ipo-performance", "private-equity", "unprofitable-companies"]}
 {"page": 3064, "high_level": ["energy", "healthcare-pandemic", "other", "technology-innovation"], "granular": ["clinical-trials", "disease-modeling-avatars", "geothermal-energy", "plasma-drilling-technology", "pluripotent-stem-cells"]}
 {"page": 3065, "high_level": ["healthcare-pandemic", "other", "politics-policy"], "granular": ["macular-degeneration-clinical-trials", "organoids-in-toxicology", "parkinson-s-stem-cell-therapy", "pluripotent-stem-cells", "stem-cell-tourism-regulations"]}
 {"page": 3066, "high_level": ["other", "politics-policy"], "granular": ["federal-regulatory-agency-rules", "financial-acronyms", "macroeconomics"]}
@@ -3509,7 +3509,7 @@
 {"page": 3660, "high_level": ["fiscal-debt", "markets-investing", "other"], "granular": ["biotech-sector-valuation", "business-travel-trends", "equity-valuations", "medicare-part-d-drug-prices"]}
 {"page": 3661, "high_level": ["banks-credit", "markets-investing"], "granular": ["asset-allocation", "central-bank-financial-repression", "dividend-yields", "stock-buybacks"]}
 {"page": 3662, "high_level": ["corporates-earnings", "fiscal-debt", "global-regions-trade", "markets-investing"], "granular": ["dividend-yields", "eafe", "european-equities", "us-corporate-cash-balances", "us-treasury-yields"]}
-{"page": 3663, "high_level": ["markets-investing", "other", "technology-innovation"], "granular": ["cloud-computing-valuations", "cybersecurity", "log4shell-vulnerability", "ransomware"]}
+{"page": 3663, "high_level": ["other", "technology-innovation"], "granular": ["cloud-services-demand", "cybersecurity", "log4shell-vulnerability", "ransomware"]}
 {"page": 3664, "high_level": ["banks-credit", "markets-investing", "technology-innovation"], "granular": ["cybersecurity", "devops-security", "information-security-ecosystem", "web3-networks"]}
 {"page": 3665, "high_level": ["energy", "technology-innovation"], "granular": ["cybersecurity", "electricity-grid-reliability", "electrification-of-energy-use", "venture-capital"]}
 {"page": 3666, "high_level": ["banks-credit", "politics-policy"], "granular": ["arbitrage-strategies", "fintech-market-share", "loan-delinquency-rates", "shadow-banking"]}
@@ -3901,7 +3901,7 @@
 {"page": 4082, "high_level": ["corporates-earnings", "energy", "fiscal-debt", "macro-growth-inflation", "politics-policy"], "granular": ["capital-expenditure", "federal-reserve-policy", "inflation", "opec", "strategic-petroleum-reserves"]}
 {"page": 4083, "high_level": ["energy", "markets-investing", "technology-innovation"], "granular": ["ai-content-generation", "energy-etfs", "generative-ai", "s-p-500"]}
 {"page": 4084, "high_level": ["other", "technology-innovation"], "granular": ["computational-reasoning-errors", "corporate-ai-adoption", "large-language-model-capabilities"]}
-{"page": 4085, "high_level": ["macro-growth-inflation", "other", "technology-innovation"], "granular": ["ai-coding-capabilities", "generative-ai", "github-copilot", "software-developer-productivity"]}
+{"page": 4085, "high_level": ["macro-growth-inflation", "other", "technology-innovation"], "granular": ["ai-coding-capabilities", "generative-ai", "github-copilot", "labor-productivity"]}
 {"page": 4086, "high_level": ["corporates-earnings", "labor-consumer-housing", "macro-growth-inflation", "technology-innovation"], "granular": ["ai-generated-spam", "automation-and-labor", "corporate-earnings-forecasts", "unemployment-rate"]}
 {"page": 4087, "high_level": ["labor-consumer-housing", "other", "technology-innovation"], "granular": ["ai-reasoning-models", "automation-and-labor", "big-bench-project", "million-song-dataset"]}
 {"page": 4088, "high_level": ["labor-consumer-housing", "markets-investing", "technology-innovation"], "granular": ["automation-and-labor", "investment-benchmarking", "llm-hallucinations"]}
@@ -4020,7 +4020,7 @@
 {"page": 4208, "high_level": ["energy", "global-regions-trade", "politics-policy", "technology-innovation"], "granular": ["ai-suppliers-vs-beneficiaries", "antitrust-regulations", "department-of-justice", "energy-etfs", "smartphone-market-share"]}
 {"page": 4209, "high_level": ["healthcare-pandemic", "markets-investing", "other", "technology-innovation"], "granular": ["ai-driven-antibiotic-discovery", "ai-medical-diagnostics", "biomedicine-ai", "direct-alpha", "protein-folding-prediction"]}
 {"page": 4210, "high_level": ["legal-governance", "technology-innovation"], "granular": ["ai-coding-capabilities", "aml-kyc-compliance", "large-language-model-capabilities", "llm-benchmarks", "open-source-llms"]}
-{"page": 4211, "high_level": ["energy", "macro-growth-inflation", "other", "technology-innovation"], "granular": ["import-collapse", "llm-context-windows", "nvidia-gpus", "retrieval-augmented-generation", "synthetic-fuels"]}
+{"page": 4211, "high_level": ["energy", "macro-growth-inflation", "other"], "granular": ["import-collapse", "llm-deployment-rates", "nvidia-gpus", "retrieval-augmented-generation", "synthetic-fuels"]}
 {"page": 4212, "high_level": ["energy", "global-regions-trade", "markets-investing", "other", "politics-policy"], "granular": ["geopolitical-risk", "supply-chain-disruptions", "taiwan-blockade-vulnerability", "tsmc", "us-logic-chip-exposure"]}
 {"page": 4213, "high_level": ["energy", "technology-innovation"], "granular": ["ai-hardware", "data-center-power-demand", "electricity-grid-reliability", "nuclear-capital-costs", "nuclear-power"]}
 {"page": 4214, "high_level": ["other", "politics-policy"], "granular": ["12th-amendment-contingent-election", "16th-amendment", "contingent-presidential-elections", "trump-administration-policies", "us-presidential-election"]}
@@ -4235,7 +4235,7 @@
 {"page": 4438, "high_level": ["energy", "other"], "granular": ["administrative-procedure-act", "administrative-rulemaking", "chevron-deference", "deregulation", "schedule-f"]}
 {"page": 4440, "high_level": ["legal-governance", "markets-investing", "politics-policy"], "granular": ["cross-border-investment-services", "financial-disclosures", "financial-regulation"]}
 {"page": 4441, "high_level": ["other", "technology-innovation"], "granular": ["ai-api-pricing", "ai-model-training-costs", "deepseek", "mixture-of-experts", "semiconductor-manufacturing"]}
-{"page": 4442, "high_level": ["markets-investing", "technology-innovation"], "granular": ["ai-model-training-costs", "cloud-computing-valuations", "llm-copyright-violations", "open-source-llms"]}
+{"page": 4442, "high_level": ["technology-innovation"], "granular": ["ai-model-training-costs", "cloud-services-demand", "llm-copyright-violations", "open-source-llms"]}
 {"page": 4443, "high_level": ["fiscal-debt", "macro-growth-inflation", "technology-innovation"], "granular": ["ai-hardware", "debt-monetization", "deepseek", "nvidia-gpus", "open-source-llms"]}
 {"page": 4444, "high_level": ["energy", "fiscal-debt", "technology-innovation"], "granular": ["ai-hardware", "alternative-energy-tax-credits", "cuda-software-competitors", "data-center-power-demand", "us-budget-reconciliation"]}
 {"page": 4446, "high_level": ["legal-governance", "markets-investing", "politics-policy"], "granular": ["cross-border-investment-services", "financial-disclosures", "financial-regulation"]}
@@ -4325,7 +4325,7 @@
 {"page": 4535, "high_level": ["global-regions-trade", "macro-growth-inflation", "politics-policy"], "granular": ["critical-mineral-supply-risk", "export-controls", "gilded-age-tariffs", "labor-productivity", "rare-earth-elements"]}
 {"page": 4537, "high_level": ["global-regions-trade", "legal-governance", "politics-policy"], "granular": ["european-financial-market-supervision", "financial-compliance", "financial-regulation"]}
 {"page": 4538, "high_level": ["energy", "legal-governance", "other", "politics-policy"], "granular": ["department-of-government-efficiency", "federal-workforce-reductions", "grid-inertia", "texas-power-outage", "us-federal-spending-cuts"]}
-{"page": 4539, "high_level": ["macro-growth-inflation", "markets-investing", "politics-policy"], "granular": ["cloud-computing-valuations", "economic-leading-indicators", "s-p-500", "tariffs", "us-border-control"]}
+{"page": 4539, "high_level": ["macro-growth-inflation", "markets-investing", "politics-policy", "technology-innovation"], "granular": ["cloud-services-demand", "economic-leading-indicators", "s-p-500", "tariffs", "us-border-control"]}
 {"page": 4540, "high_level": ["legal-governance", "other", "politics-policy"], "granular": ["department-of-government-efficiency", "federal-workforce-reductions", "government-grants-and-contracts", "impoundment-control-act"]}
 {"page": 4541, "high_level": ["corporates-earnings", "energy", "legal-governance", "markets-investing", "politics-policy"], "granular": ["autonomous-vehicles", "corporate-interest-costs", "department-of-government-efficiency", "irs-funding-cuts", "state-tax-revenues"]}
 {"page": 4542, "high_level": ["healthcare-pandemic", "labor-consumer-housing", "markets-investing"], "granular": ["healthcare-innovation", "nih-research-funding", "occupational-licensing", "retirement-safety-net", "us-healthcare-spending"]}
@@ -4340,8 +4340,8 @@
 {"page": 4552, "high_level": ["macro-growth-inflation", "other", "technology-innovation"], "granular": ["ai-copyright-disputes", "ai-hallucination-rates", "ai-model-training-costs", "gpqa-benchmark"]}
 {"page": 4553, "high_level": ["labor-consumer-housing", "technology-innovation"], "granular": ["corporate-ai-adoption", "enterprise-ai-software-agents", "workplace-genai-usage"]}
 {"page": 4554, "high_level": ["healthcare-pandemic", "macro-growth-inflation", "other", "technology-innovation"], "granular": ["ai-medical-diagnostics", "ai-white-collar-job-displacement", "measles-outbreaks", "unemployment-rate", "vaccination-rates"]}
-{"page": 4555, "high_level": ["corporates-earnings", "markets-investing", "technology-innovation"], "granular": ["ai-content-generation", "azure-ai-revenue", "cloud-computing-valuations", "hyperscaler-capital-expenditure"]}
-{"page": 4556, "high_level": ["corporates-earnings", "energy", "macro-growth-inflation", "technology-innovation"], "granular": ["ai-hardware", "ai-model-training-costs", "autonomous-vehicles", "hyperscaler-capital-expenditure", "software-developer-productivity"]}
+{"page": 4555, "high_level": ["corporates-earnings", "technology-innovation"], "granular": ["ai-content-generation", "azure-ai-revenue", "cloud-services-demand", "hyperscaler-capital-expenditure"]}
+{"page": 4556, "high_level": ["corporates-earnings", "energy", "macro-growth-inflation", "technology-innovation"], "granular": ["ai-hardware", "ai-model-training-costs", "autonomous-vehicles", "hyperscaler-capital-expenditure", "labor-productivity"]}
 {"page": 4557, "high_level": ["other", "technology-innovation"], "granular": ["ai-reasoning-models", "cybench-benchmark", "humanity-s-last-exam"]}
 {"page": 4559, "high_level": ["legal-governance", "markets-investing", "politics-policy"], "granular": ["cross-border-investment-services", "european-bank-regulation", "j-p-morgan"]}
 {"page": 4560, "high_level": ["fiscal-debt", "politics-policy"], "granular": ["digital-services-taxes", "medicaid-spending", "tax-cuts-and-jobs-act-tcja", "us-budget-deficit", "us-budget-reconciliation"]}
@@ -4611,11 +4611,11 @@
 {"page": 4834, "high_level": ["labor-consumer-housing", "macro-growth-inflation", "technology-innovation"], "granular": ["ai-academic-benchmarks", "ai-hallucination-rates", "ai-software-engineering", "artificial-intelligence-reasoning", "automation-and-labor"]}
 {"page": 4835, "high_level": ["macro-growth-inflation", "other", "technology-innovation"], "granular": ["ai-exposed-job-starts", "ai-model-training-costs", "common-crawl-tokens", "gdpval-benchmark", "labor-productivity"]}
 {"page": 4836, "high_level": ["corporates-earnings", "labor-consumer-housing", "technology-innovation"], "granular": ["ai-token-consumption", "automation-and-labor", "corporate-ai-adoption", "corporate-it-spending", "enterprise-ai-software-agents"]}
-{"page": 4837, "high_level": ["fiscal-debt", "macro-growth-inflation", "other", "technology-innovation"], "granular": ["business-cost-reduction", "corporate-ai-adoption", "debt-monetization", "labor-productivity"]}
-{"page": 4838, "high_level": [], "granular": []}
-{"page": 4839, "high_level": [], "granular": []}
-{"page": 4840, "high_level": [], "granular": []}
-{"page": 4841, "high_level": [], "granular": []}
+{"page": 4837, "high_level": ["fiscal-debt", "macro-growth-inflation", "markets-investing", "other", "technology-innovation"], "granular": ["business-cost-reduction", "corporate-ai-adoption", "corporate-ai-investment", "debt-monetization", "labor-productivity"]}
+{"page": 4838, "high_level": ["fiscal-debt", "labor-consumer-housing", "politics-policy", "technology-innovation"], "granular": ["generative-ai", "labor-force-participation", "macroeconomics", "tariffs", "us-budget-deficit"]}
+{"page": 4839, "high_level": ["macro-growth-inflation", "markets-investing", "other", "technology-innovation"], "granular": ["ai-market-disruption-index", "corporate-ai-investment", "generative-ai", "llm-deployment-rates", "workflow-integration-barriers"]}
+{"page": 4840, "high_level": ["fiscal-debt", "macro-growth-inflation", "markets-investing", "technology-innovation"], "granular": ["corporate-ai-investment", "enterprise-genai-roi", "it-budget-allocation", "labor-productivity"]}
+{"page": 4841, "high_level": ["corporates-earnings", "fiscal-debt", "macro-growth-inflation", "politics-policy", "technology-innovation"], "granular": ["cloud-services-demand", "debt-monetization", "gpu-depreciation", "hyperscaler-capital-expenditure", "nvidia-gpus"]}
 {"page": 4842, "high_level": ["corporates-earnings", "macro-growth-inflation", "politics-policy"], "granular": ["gpu-depreciation", "hyperscaler-capital-expenditure", "nvidia-gpus"]}
 {"page": 4843, "high_level": ["labor-consumer-housing", "technology-innovation"], "granular": ["ai-infrastructure-capital-spending", "ai-token-consumption", "consumer-inference-demand"]}
 {"page": 4844, "high_level": ["energy", "fiscal-debt", "technology-innovation"], "granular": ["ai-compute-budget", "ai-reasoning-models", "data-center-power-demand", "edge-ai-computing", "gpu-data-center-costs"]}
@@ -4801,10 +4801,10 @@
 {"page": 5028, "high_level": ["labor-consumer-housing", "technology-innovation"], "granular": ["automation-and-labor", "business-intelligence-automation", "diy-software-tools", "government-cost-cutting", "saas-disruption"]}
 {"page": 5029, "high_level": ["banks-credit", "energy", "other", "technology-innovation"], "granular": ["agentic-ai", "fintech-market-share", "merchant-acquiring-industry", "payment-intermediaries", "payment-processing-volume"]}
 {"page": 5030, "high_level": ["fiscal-debt", "legal-governance", "other", "technology-innovation"], "granular": ["content-creation-moats", "debt-monetization", "enterprise-saas-switching-costs", "financial-compliance", "saas-disruption"]}
-{"page": 5031, "high_level": ["energy", "other", "technology-innovation"], "granular": ["ai-academic-benchmarks", "ai-software-engineering", "claude-opus-safety-testing", "llm-benchmarks", "openai-power-demand"]}
+{"page": 5031, "high_level": ["energy", "macro-growth-inflation", "other", "technology-innovation"], "granular": ["ai-academic-benchmarks", "ai-software-engineering", "claude-opus-safety-testing", "llm-deployment-rates", "openai-power-demand"]}
 {"page": 5032, "high_level": ["technology-innovation"], "granular": ["ai-software-engineering", "cognitive-limits-of-llms", "llm-benchmarks", "metr-ai-evaluation"]}
 {"page": 5033, "high_level": ["global-regions-trade", "other", "technology-innovation"], "granular": ["agentic-ai", "ai-identity-spoofing", "ai-safety-risks", "claude-opus-safety-testing", "emerging-market-vulnerabilities"]}
-{"page": 5034, "high_level": ["global-regions-trade", "markets-investing", "technology-innovation"], "granular": ["ai-coding-capabilities", "alibaba-market-cap", "cloud-computing-valuations", "cybersecurity", "emerging-market-vulnerabilities"]}
+{"page": 5034, "high_level": ["global-regions-trade", "technology-innovation"], "granular": ["ai-coding-capabilities", "alibaba-market-cap", "cloud-services-demand", "cybersecurity", "emerging-market-vulnerabilities"]}
 {"page": 5035, "high_level": ["corporates-earnings", "global-regions-trade", "markets-investing", "technology-innovation"], "granular": ["emerging-market-capital-outflows", "enterprise-ai-software-agents", "software-etf-daily-turnover", "tech-sector-acquisitions"]}
 {"page": 5036, "high_level": ["corporates-earnings", "macro-growth-inflation", "technology-innovation"], "granular": ["forward-price-to-earnings", "regional-economic-divergence", "saas-disruption", "software-bookings-and-billings"]}
 {"page": 5037, "high_level": ["corporates-earnings", "markets-investing"], "granular": ["equity-returns", "stock-market-capitalization", "tech-sector-acquisitions"]}
@@ -4820,8 +4820,8 @@
 {"page": 5047, "high_level": ["corporates-earnings", "labor-consumer-housing", "technology-innovation"], "granular": ["ai-exposed-job-starts", "tech-sector-acquisitions", "us-labor-market"]}
 {"page": 5048, "high_level": ["corporates-earnings", "technology-innovation"], "granular": ["ai-washing", "tech-sector-acquisitions"]}
 {"page": 5049, "high_level": ["corporates-earnings"], "granular": ["tech-sector-acquisitions"]}
-{"page": 5050, "high_level": ["corporates-earnings", "macro-growth-inflation"], "granular": ["software-developer-productivity", "tech-sector-acquisitions"]}
-{"page": 5051, "high_level": ["corporates-earnings", "macro-growth-inflation", "technology-innovation"], "granular": ["ai-software-engineering", "software-developer-productivity", "tech-sector-acquisitions"]}
+{"page": 5050, "high_level": ["corporates-earnings", "labor-consumer-housing"], "granular": ["software-developer-employment-share", "tech-sector-acquisitions"]}
+{"page": 5051, "high_level": ["corporates-earnings", "labor-consumer-housing", "technology-innovation"], "granular": ["ai-software-engineering", "software-developer-employment-share", "tech-sector-acquisitions"]}
 {"page": 5052, "high_level": ["labor-consumer-housing", "markets-investing"], "granular": ["disintermediation", "re-leasing-spreads", "real-estate-brokerage-commissions", "residential-real-estate-development"]}
 {"page": 5053, "high_level": ["corporates-earnings", "politics-policy", "technology-innovation"], "granular": ["corporate-fraud", "crypto-exchange-compliance", "stablecoin-regulations"]}
 {"page": 5054, "high_level": ["banks-credit", "energy", "markets-investing", "politics-policy"], "granular": ["blockchain-in-payments", "genius-act", "merchant-acquiring-industry", "stablecoin-regulations"]}
@@ -4841,7 +4841,7 @@
 {"page": 5068, "high_level": ["labor-consumer-housing", "technology-innovation"], "granular": ["ai-academic-benchmarks", "ai-white-collar-job-displacement", "large-language-model-capabilities", "occupational-licensing"]}
 {"page": 5069, "high_level": ["labor-consumer-housing", "macro-growth-inflation", "technology-innovation"], "granular": ["dallas-fed-survey", "generative-ai", "workplace-genai-usage", "workplace-technology-adoption"]}
 {"page": 5070, "high_level": ["technology-innovation"], "granular": ["ai-market-disruption-index", "generative-ai", "movie-production-cost-savings"]}
-{"page": 5071, "high_level": ["labor-consumer-housing", "technology-innovation"], "granular": ["ai-market-disruption-index", "corporate-ai-adoption", "generative-ai", "workplace-genai-usage"]}
+{"page": 5071, "high_level": ["labor-consumer-housing", "markets-investing", "technology-innovation"], "granular": ["ai-market-disruption-index", "corporate-ai-investment", "enterprise-genai-roi", "generative-ai", "workplace-genai-usage"]}
 {"page": 5076, "high_level": ["energy"], "granular": ["energy-efficiency", "energy-intensity-of-gdp", "liquefied-natural-gas-imports", "lng-exports", "strait-of-hormuz"]}
 {"page": 5077, "high_level": ["energy", "politics-policy"], "granular": ["brent-crude-oil-prices", "dutch-ttf-natural-gas", "nato-defense-spending", "unilateral-us-foreign-policy", "us-munitions-depletion"]}
 {"page": 5078, "high_level": ["energy"], "granular": ["electricity-prices", "jet-fuel-pricing", "jones-act", "refined-oil-products", "strategic-petroleum-reserves"]}
@@ -4863,7 +4863,7 @@
 {"page": 5096, "high_level": ["global-regions-trade", "legal-governance", "politics-policy"], "granular": ["european-financial-market-supervision", "financial-regulation", "j-p-morgan"]}
 {"page": 5097, "high_level": ["fiscal-debt", "macro-growth-inflation", "markets-investing", "technology-innovation"], "granular": ["ai-academic-benchmarks", "ai-compute-budget", "ai-hallucination-rates", "ai-model-alignment", "anthropic-research"]}
 {"page": 5098, "high_level": ["corporates-earnings", "global-regions-trade", "other", "technology-innovation"], "granular": ["cybench-benchmark", "cybersecurity", "emerging-market-vulnerabilities", "network-attack-simulations", "software-vulnerability-detection"]}
-{"page": 5099, "high_level": ["markets-investing", "other", "technology-innovation"], "granular": ["chinese-ai-data-siphoning", "cloud-computing-valuations", "cybersecurity", "project-glasswing", "scada-vulnerability"]}
+{"page": 5099, "high_level": ["other", "technology-innovation"], "granular": ["chinese-ai-data-siphoning", "cloud-services-demand", "cybersecurity", "project-glasswing", "scada-vulnerability"]}
 {"page": 5100, "high_level": ["technology-innovation"], "granular": ["ai-behavioral-audits", "ai-model-alignment", "ai-safety-risks", "ai-user-deception", "strategic-manipulation-by-ai"]}
 {"page": 5101, "high_level": ["banks-credit", "global-regions-trade", "other", "technology-innovation"], "granular": ["cyberhacking-risks", "efficient-frontier-modeling", "emerging-market-vulnerabilities", "project-glasswing"]}
 {"page": 5102, "high_level": ["banks-credit", "global-regions-trade", "other", "technology-innovation"], "granular": ["ai-behavioral-audits", "chinese-state-sponsored-cyberattacks", "mercator-institute-for-china-studies", "ministry-of-state-security-cyber-campaigns", "threat-actor-groups"]}

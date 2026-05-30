@@ -1,9 +1,9 @@
 # TODO — worklist
 
-Read this top-to-bottom, then `BUILD_BRIEF.md` (the canonical spec). The retrieval/agent
-pipeline (W1–W5) is built, runs end-to-end, and has been hardened (see *Done*). The remaining
-work is mostly the **product UI** (the U-series below — the user's headline goal) plus two
-**Human-gated** items and a validation pass. Each item has a verify step.
+Read this top-to-bottom, then `BUILD_BRIEF.md` for original project context. The retrieval/agent
+pipeline (W1-W5) is built, runs end-to-end, and has been hardened (see *Done*). The product UI
+v1 is now built and browser-verified. Remaining work is mostly **latency measurement/optimization**,
+the **Human-gated** golden key, and validation.
 
 ## Prerequisites
 
@@ -11,45 +11,43 @@ work is mostly the **product UI** (the U-series below — the user's headline go
   Structural work is baked into `_diag/pages_clean.jsonl`; consume it, never re-derive it.
 - **API keys** (`.env`, gitignored, never print/commit): `GEMINI_API_KEY` and
   `ANTHROPIC_API_KEY` are both present and working.
-- **You build; the runtime agent is Claude** (`claude-agent-sdk` + `claude-haiku-4-5`). Don't
-  swap the runtime to another provider.
+- **You build; the runtime agent is Claude** (`claude-agent-sdk`; current model is
+  `claude-sonnet-4-6`). Don't swap the runtime to another provider.
 - **Env is pre-synced** (`uv sync` done). Use `uv run …`. UI: `uv run uvicorn server:app`
   (serves on `http://127.0.0.1:8000`).
 - **Browser-with-vision is wired for the next session.** A project-scoped `.mcp.json` at the repo
   root registers the **Playwright MCP** (`npx @playwright/mcp@latest`). It is NOT active until
   Claude Code is restarted and the server is approved at startup; first call downloads Chromium.
   Once live, tools appear as `mcp__playwright__*` — navigate to the running app and screenshot to
-  iterate on the UI visually. This is the intended workflow for finishing the U-series.
+  iterate on UI changes visually.
   - **Codex / non-Claude-Code agents:** this `.mcp.json` is **Claude Code-specific** and will NOT be
     picked up automatically. To get the same browser-with-vision loop, register Playwright in your
     own MCP config (Codex: `~/.codex/config.toml` → `[mcp_servers.playwright]` with
     `command = "npx"`, `args = ["@playwright/mcp@latest"]`), or work code-only and have the human
-    screenshot. Separately: the **runtime eom agent** (`agent.py`) is `claude-haiku-4-5` via
-    `claude-agent-sdk`, which spawns the `claude` CLI and bills whatever that login uses — currently
-    the Claude **subscription** (OAuth), NOT the `.env` `ANTHROPIC_API_KEY`. So *live* agent runs
-    still consume Claude credits regardless of which coding agent drives the repo. To bill the API
-    key instead, move `load_dotenv(ROOT/".env")` to module-import time in `agent.py` (it's currently
-    lazy, inside `_load()`, so it lands after the subprocess is spawned).
+    screenshot. Separately: the **runtime eom agent** (`agent.py`) uses `claude-agent-sdk`, which
+    spawns the `claude` CLI. `.env` is loaded at module-import time before the subprocess starts, so
+    `ANTHROPIC_API_KEY` is available to the runtime process.
 - **Index rebuild is cheap and offline.** `uv run python build_topics.py --normalize-only`
   (no API cost — raw topics in `page_topics_raw.jsonl` are cached) then
   `uv run python build_index.py`. Full rebuild ~3 min, dominated by the phrase linkage.
 
-## Current state (updated 2026-05-25) — pipeline COMPLETE + hardened
+## Current state (updated 2026-05-30) — pipeline COMPLETE + hardened
 
 - ✅ **W1 cards** — `build_cards.py` → `index/cards.jsonl`, ~2,300 chart-bearing pages.
 - ✅ **W2 topics** — `build_topics.py` → `page_topics_raw.jsonl` (raw, cached), `page_topics.jsonl`,
   `topics.json`: **14 high-level buckets, 3,931 granular topics** over 4,882 kept pages, rolled
-  up onto 686 issues. (See *Done → taxonomy* for the rebuild rationale.)
+  up onto **632 issues** (down from 686 after the date-propagation fix below merged spuriously-
+  split issues). (See *Done → taxonomy* for the rebuild rationale.)
 - ✅ **W3 index** — `build_index.py` → `index/{embeddings.npy, bm25.pkl, pages.json}`; rows align
   (4,882 == 4,882 == 4,882, emb dim 1024).
-- ✅ **W4 agent** — `agent.py`: 11 eom tools, SDK wiring, `asyncio.Queue` → two-lane events.
+- ✅ **W4 agent** — `agent.py`: 7 eom tools, SDK wiring, `asyncio.Queue` → two-lane events.
   Tool lockdown (`can_use_tool=_only_eom` + `disallowed_tools`) is in and verified with the
-  streaming-prompt input the SDK requires for `can_use_tool` to fire. SYSTEM prompt is the
-  drafted v1 (still owner-gated — see Human-gated).
+  streaming-prompt input the SDK requires for `can_use_tool` to fire. SYSTEM prompt is shape-aware
+  and no longer broadly owner-gated.
 - ✅ **W5 UI** — `server.py` + `static/index.html`; `/run` streams SSE, `/page_image/{n}` opens
-  the PDF once at startup. **This is the stub UI the U-series replaces.**
-- ✅ **Eval harness** — `eval_run.py`: runs `run_agent` headless, prints the `coverage_status`
-  trajectory + final cited `[p. N]` set as text/JSON. This is what the golden key gets scored against.
+  the PDF once at startup. Product UI v1 is in place.
+- ✅ **Eval harness** — `eval_run.py`: runs `run_agent` headless and prints tool path,
+  enumeration accounting, committed pages, cited pages, and optional golden-key scores.
 
 ### Done this session (review of the autonomous worklist — N1–N5)
 
@@ -70,9 +68,9 @@ work is mostly the **product UI** (the U-series below — the user's headline go
     are all correctly placed. Verified live: a solar-costs query cited pp.1680–1682, 2355 — all
     `energy` / `solar-photovoltaic-costs` pages.
 - ✅ **agent.py bug fixes (beyond N-scope):**
-  - **Coverage state is now per-run** (`_inspected` → `_inspected_var` contextvar). Was a module
-    global that would leak one query's inspected issues into the next in the long-lived server and
-    corrupt `coverage_status`. Verified isolated across sequential runs.
+  - **Per-run state isolation** was fixed during the earlier coverage-tool implementation; current
+    runtime no longer exposes `mark_inspected` / `coverage_status`, but the long-lived server still
+    keeps run-local event state isolated.
   - **`list_topics` drill-down** — added `list_topics(high_level=<bucket id>)` returning the
     bucket's top-100 granular ids (sorted by coverage). Without it only ~70 of thousands of
     granular ids were reachable, breaking the prompt's "enumerate topics" backbone. SYSTEM step 2
@@ -83,10 +81,76 @@ work is mostly the **product UI** (the U-series below — the user's headline go
   block; trace events now carry a per-run monotonic `id`. Verified live (answer block + 13/4
   primary/supporting + ids 1..97). See U3/U4 for the remaining front-end half.
 
-### UI session — U1–U3 front-end built (2026-05-25)
+### Done 2026-05-30 — date + title fixes + full re-scan
 
-`static/index.html` was rewritten to consume the existing two-lane contract (no backend changes,
-no field renames). Implemented and pending a real browser pass:
+- ✅ **Date-inference hardening** (`_diag/enrich.py`): added monotonicity check during forward
+  propagation. A detected date that jumps backward by >365 days from the rolling date is rejected
+  as a body-text reference (citation, chart legend, historical event), not a header date. **57
+  spurious dates rejected** in the full run — including the originally-reported `Jan 1, 2017`
+  poisoning pp. 5042–5044, plus clusters like the 2008 Pearl Harbor reference (`Dec 7, 1941`)
+  and the p.4579–4595 historical-events chart-legend cluster inside the June 2025 energy paper.
+- ✅ **Title extraction hardening** (`clean_text.py` + `build_issues.py`): per-issue sub-banner
+  lines (e.g. `Online Trump Tracker`, `2025 Energy Paper / Trump Tracker`, `2024 Outlook / …
+  monitor / … monitor`) were being picked as issue titles. Added narrow strip rules in
+  `clean_text.py` (sub-banner, cross-promo `Access our X here`, JPM private-banking preamble
+  + continuations, institutional-use disclaimer, OCR-mangled header tail) and wired
+  `clean_content` into `build_issues.py::title_from_page`. Repeat-title sweep over 632 issue-
+  starts: **0 banner titles, 0 Untitled** (only `Executive Summary` × 2, legitimate).
+- ✅ **Full pipeline re-scan** (5117 pages): scan → enrich → strip → build_issues → build_cards
+  (2,300 cards in 58 min, 0 errors) → build_topics → build_index (4,882 pages, dim 1024).
+  `index/cards.jsonl.bak` kept as a safety net — delete when satisfied.
+- ✅ **End-to-end verified in the running app** via Playwright: p.5044 now resolves to
+  *"Software is suddenly unloved: positioning and short interest, March 6, 2026"* (previously
+  *"Software vs semiconductors, high bandwidth memory etc, Jan 1, 2017"*).
+- ✅ **`enumerate` entity guardrail (`must_contain` param + SYSTEM nudge).** Stress-testing the
+  app surfaced a precision bug: an Argentina query enumerated 7 broad topics
+  (`sovereign-debt`, `currency-pegs`, `emerging-market-vulnerabilities`, …), unioned 242 tagged
+  pages, and committed many Greece/Turkey/Mexico/Spain pages that share the concepts but never
+  mention Argentina. **Embedding-similarity ranking is conceptual, not lexical** — Greek-default
+  charts score high against "Argentina peso default". Fix in `agent.py`:
+  - New `enumerate(..., must_contain: list[str])` param: if supplied, pages are kept only when
+    their merged `content_text + card_text` contains at least one of the substrings
+    (case-insensitive, partial — `["Argentin"]` matches `Argentina` + `Argentine`). Trace summary
+    reports `dropped_by_must_contain` for diagnosis.
+  - SYSTEM prompt adds an **ENTITY GUARDRAIL** section instructing the agent to pass
+    `must_contain=[entity terms]` whenever enumerating broad topics for a named-entity query.
+  - Headless verify on the live index: broad-topic union (242 pages) → 27 with
+    `must_contain=["argentin"]` — **88.8 % off-target drop**, and net recall of Argentina-mentioning
+    pages is HIGHER than narrow Argentina-only topics (27 vs 11), because Argentina is often
+    discussed on pages primarily tagged with sovereign-debt themes.
+- ✅ **SYSTEM prompt revision — shape branching + optional answer block (owner-decided 2026-05-30).**
+  Stress tests showed two real defects: (a) narrow factual queries ("did I write about the iPhone
+  in 2007?") opened with "Coverage map:" scaffolding before delivering a one-line answer, and
+  (b) the Bitcoin "earliest mention + evolution" query burned ~3M tokens / $1.68 / 10 min
+  partly because the agent treated the mandatory answer block as a forcing function to keep
+  widening. Revision in `agent.py::SYSTEM`:
+  - New **QUERY SHAPE** section up top: classify NARROW vs TOPICAL vs ANALYTICAL before
+    retrieval; match effort to shape. Replaces "Your default job is EXHAUSTIVE recall" with
+    shape-aware guidance. Ambiguous → default TOPICAL.
+  - **ANSWER BLOCK** rule made shape-conditional: TOPICAL queries still finish with one
+    `add_to_report(kind="answer", ...)` coverage map; NARROW queries can skip it when the
+    auto-committed findings self-suffice. Don't pad a one-line answer with scaffolding.
+  - **Stop condition** rewritten: stop when the answer is in hand at the chosen shape, not when
+    "find_mentions / enumerate / widening are complete" mechanically.
+  - Relevance tagging kept LLM-driven for manual commits; `enumerate` assigns primary/supporting
+    by query similarity for bulk findings.
+
+### Open observations from 2026-05-30 stress test (not yet acted on)
+
+Five Cembalest-voice queries through the live UI exposed these still-open issues:
+
+- **Token cost on coverage queries is high.** "Earliest Bitcoin mention + evolution" burned
+  ~3M tokens / $1.68 / 51 turns. The 2026-05-30 SYSTEM revision should reduce this by softening
+  the "be exhaustive" forcing function, but it's worth re-measuring on the same query.
+- **Latency is the real product bottleneck.** Coverage queries can still take multiple minutes
+  wall-clock. Most of that is sequential LLM turns, not retrieval. Next optimization target:
+  re-measure representative coverage queries after the shape-aware prompt, then reduce avoidable
+  turns and parallelize independent tool calls where the SDK/runtime permits.
+
+### UI session — U1–U6 product UI v1 built and verified (2026-05-30)
+
+`static/index.html` consumes the existing two-lane contract (no field renames). Verified in the
+in-app browser against live local runs:
 - ✅ **U1 layout** — report is now a full-width, page-scrolling hero; `#bar` is sticky; the trace
   moved into a **fixed right drawer** (slides via `transform`), **collapsed on load**, toggled by an
   "Agent trace ▸/▾" button in `#bar`, open/closed persisted in `localStorage` (`traceOpen`). Trace
@@ -99,51 +163,55 @@ no field renames). Implemented and pending a real browser pass:
 - ✅ **U3 relevance** — `answer` is pinned at the top in `#answer-slot` (labeled "Answer"; arrival
   scrolls to top); `primary` quotes/charts render in full; `supporting` ones are tucked behind a
   per-section "▾ N supporting findings" disclosure, supporting charts as ~240px thumbnails.
-- **Zero-risk U4 hooks pre-seeded:** each finding carries `data-src`; each trace event renders with
-  `id="trace-ev-{id}"`. No provenance chips yet — that's the U4 front-end.
-- **Not yet verified in a browser.** No Playwright pass has run (MCP needs the restart above). The
-  per-U Verify steps below are the acceptance checks for the next session.
+- ✅ **U4 provenance** — each finding renders a `src` chip; clicking it opens the trace drawer,
+  scrolls to the best matching tool event, and flashes it. Matching handles both colon-delimited
+  sources (`find_mentions:iPhone`) and loose sources (`search widening`).
+- ✅ **U5 export** — `Download PDF` is the only export control retained by owner preference.
+  `Copy MD` / `Download MD` were removed. PDF export posts the assembled report to `/export_pdf`
+  and returns a valid PDF.
+- ✅ **U6 live progress** — hero status shows current tool, running/done state, and a progress bar.
+  It advances from tool activity and structured `enumerate` trace fields, then resolves to 100% on
+  `done`.
+- ✅ **Narrow-query hardening** — if a factual/negative query produces no report-lane events, the
+  final assistant prose is promoted into a pinned `answer` block so the report pane never finishes
+  empty.
 
 ---
 
-## ★ ACTIVE — performance/recall pivot (see `OPTIMIZATION_PLAN.md`)
+## Performance/Recall Pivot
 
 > **Direction change (owner, 2026-05-25):** optimize for **lower latency + exhaustive recall**, and
-> shift the product from agent synthesis toward **result enumeration**. Plan + diagnosis (a live run
-> spends 78% of its ~139 tool calls manually reading+committing pages one LLM turn at a time, and
-> `search_topic` silently caps recall at 10) live in **`OPTIMIZATION_PLAN.md`**. The SYSTEM-prompt
-> parts there remain owner-gated. Also fixed this session: the `in_date_range` lexical-compare bug
-> that made every date-scoped search return 0 hits (`agent.py` `_norm_date`).
+> shift the product from agent synthesis toward **result enumeration**.
 
-## ★ NEXT SESSION — make the UI *fantastic* (Playwright-driven)
+The historical `OPTIMIZATION_PLAN.md` has been deleted because its levers have either shipped or
+become stale. Current state:
+- ✅ Bulk `enumerate` tool ships and is active: it unions granular topics, dedups pages, ranks by
+  query similarity, auto-commits quote/chart findings, and emits structured coverage accounting.
+- ✅ Topic enumeration is uncapped except for the `MAX_ENUMERATE=500` safety ceiling.
+- ✅ SYSTEM prompt now branches by query shape: NARROW, TOPICAL, ANALYTICAL.
+- ✅ Entity guardrail (`must_contain`) prevents broad-topic enumeration from committing pages that
+  are conceptually similar but lack the named entity.
+- ⬜ Remaining optimization work: measure the same expensive coverage query before/after the prompt
+  changes, then reduce avoidable LLM turns and parallelize independent tool calls where possible.
 
-> The headline goal. U1–U3 are coded but unverified; U4–U6 remain. The plan: **restart so the
-> Playwright MCP is live, run the app, and iterate on the real rendered UI with screenshots** —
-> don't ship UI by reading code alone.
+## ★ ACTIVE / NEXT SESSION — latency + validation
 
-Loop to follow:
-1. Start the app (`uv run uvicorn server:app`), navigate Playwright to `http://127.0.0.1:8000`.
-2. Run a real query (a multi-section one like a solar-costs / pensions query exercises headings +
-   primary/supporting + the answer block). Screenshot **collapsed-on-load**, **drawer open
-   mid-run**, and **finished report**.
-3. **Verify U1–U3** against their Verify steps below (incl. the folded-in N2 check: a `quote` is a
-   blockquote with `[p. N]`, a `chart` is an inline `/page_image` figure).
-4. **Then make it genuinely great**, not just correct. Visual-quality bar to push on:
-   typography/rhythm, the answer block as a confident hero, clear primary-vs-supporting hierarchy,
-   chart thumbnails that read well, drawer polish (overlay vs. reflow, shadow, transitions), loading
-   / empty / error states, and the mobile layout. Treat this as a design pass, screenshot-driven.
-5. **Build U4 (provenance chips) and U6 (live progress)** — the `data-src` / `trace-ev-{id}` hooks
-   for U4 are already in the markup; U5 export is lower priority.
+1. Re-measure "Earliest Bitcoin mention + evolution" after the 2026-05-30 shape-aware prompt and
+   current UI/runtime changes. Record wall-clock, tool-call count, token/cost total, and cited pages.
+2. Optimize the remaining avoidable LLM turns without weakening recall. Candidate areas:
+   redundant widening searches, unnecessary manual `add_to_report` calls after `enumerate`, and
+   independent tool calls that could run concurrently if the SDK/runtime supports it.
+3. Build the human golden key for one `golden_queries.txt` query with the owner.
+4. Run the 5 golden queries through the UI and/or `eval_run.py`; compare committed/cited pages to
+   the golden key and to `baseline/golden_results.md`.
 
-## PRODUCT VISION — the two-panel report UI (U-series, the headline goal)
+## PRODUCT VISION — the two-panel report UI (U-series)
 
 > **One collapsible side panel** shows the agent's action trace (its tool calls / reasoning).
 > **One main panel** shows the assembled report in markdown/HTML — and makes clear **which
 > quotes / charts / syntheses best answer the user's query**, not just a flat arrival-order dump.
 
-The event contract is in place AND the relevance/answer/provenance backend is already wired
-(verified live 2026-05-25) — **the remaining U-series work is almost entirely front-end
-(`static/index.html`).** Current event shapes the UI consumes:
+The event contract is in place and the U-series UI is implemented. Current event shapes the UI consumes:
 - `lane:"report"`, `kind ∈ {heading, quote, chart, narrative, answer}`. `quote`/`chart` carry
   `relevance ∈ {"primary","supporting"}` (defaults to `"supporting"`). `answer` is emitted once
   at the end — a synthesized direct answer with inline `[p. N]` (render it pinned at the top).
@@ -153,7 +221,7 @@ The event contract is in place AND the relevance/answer/provenance backend is al
 Do not rename these fields — extend if needed.
 
 ### U1 — Layout: report is the hero, trace is a collapsible drawer
-✅ **CODED (2026-05-25), pending browser verify.** See "UI session" above for what was built.
+✅ **DONE + browser verified.** See "UI session" above for what was built.
 `static/index.html` was a fixed 2-column grid with the 400px trace always visible; it is now a
 full-width report + collapsible right drawer.
 - Make the report full-width by default; move the trace into a **collapsible right drawer**
@@ -166,7 +234,7 @@ full-width report + collapsible right drawer.
   and a `chart` renders an inline `/page_image` figure.)
 
 ### U2 — Report structure: group findings under their sections
-✅ **CODED (2026-05-25), pending browser verify.** `heading` now opens a collapsible section and
+✅ **DONE + browser verified.** `heading` now opens a collapsible section and
 findings nest under it.
 Was append-only in arrival order; `heading` events didn't open a
 container. The renderer now **nests** `quote/chart/narrative` under the most recent `heading`
@@ -176,6 +244,7 @@ group by sub-topic / chronology and to emit headings).
   the findings committed under it, in document order.
 
 ### U3 — Relevance: surface which findings best answer the query  ★ core of the vision
+✅ **DONE + browser verified.**
 **Decided (owner, 2026-05-25): agent-tagged relevance + a synthesized answer block.**
 - ✅ **BACKEND DONE (agent.py + SYSTEM, verified live):** `add_to_report` takes `relevance`
   (`primary`|`supporting`, default `supporting`) and a `kind:"answer"`; SYSTEM instructs the agent
@@ -183,7 +252,7 @@ group by sub-topic / chronology and to emit headings).
   primary findings). A live solar-costs run emitted the answer block + 13 primary / 4 supporting
   tags. *Tuning note:* the agent currently leans toward `primary` (13/17) — if the rendered report
   feels under-differentiated, tighten the "reserve primary for the strongest" wording in SYSTEM.
-- ✅ **FRONT-END CODED (2026-05-25), pending browser verify:** `answer` is pinned at the top of the
+- ✅ **FRONT-END:** `answer` is pinned at the top of the
   report; `primary` quotes/charts render in full; `supporting` ones are tucked behind a per-section
   "▾ N supporting findings" disclosure; `supporting` charts render as ~240px thumbnails. *Tuning
   note still open:* watch whether primary-vs-supporting reads as under-differentiated in the browser
@@ -194,35 +263,36 @@ group by sub-topic / chronology and to emit headings).
 - **Verify:** the report opens with the pinned `answer`; primary vs. supporting are visually
   distinct; the disclosure expands/collapses supporting findings.
 
-### U4 — Provenance: link a finding back to the trace that surfaced it  (closes a known gap)
+### U4 — Provenance: link a finding back to the trace that surfaced it
+✅ **DONE + browser verified.**
 - ✅ **BACKEND DONE:** every trace event now carries a per-run monotonic `id` (verified 1..97).
-- ⬜ **FRONT-END:** render each finding's `src` as a small chip; on click, open the trace drawer
+- ✅ **FRONT-END:** render each finding's `src` as a small chip; on click, open the trace drawer
   scrolled to the matching event. Correlate by `src` string (e.g. `"search_topic:solar-pv-costs"`)
   against trace `tool_call` name+args; use the trace `id` as the DOM anchor to scroll to.
 - **Verify:** clicking a finding's provenance chip reveals the originating tool call in the drawer.
 
 ### U5 — Export the assembled report
-The report is markdown-native already. Add a "Copy as Markdown" / "Download .md" (and/or `.html`)
-control that serializes the assembled report — answer block, sections, quotes with citations,
-chart references (`[chart: p. N]` or embedded `/page_image` for HTML).
-- **Verify:** export round-trips to a clean, citation-complete document.
+✅ **DONE + browser/API verified for PDF export.** Owner preference: keep only `Download PDF`; remove
+`Copy MD` and `Download MD`. `/export_pdf` renders a citation-complete PDF from the assembled report.
+- **Verify:** `Download PDF` click has no console errors; `/export_pdf` returns a valid PDF.
 
 ### U6 — Live progress in the hero panel
-Surface liveness without opening the trace: a thin status line / progress bar driven by
-`coverage_status` events ("inspected X/Y issues") and the current tool name, plus a running/done
-spinner.
-- **Verify:** progress advances as `coverage_status` fires and resolves on `done`.
+✅ **DONE + browser verified.** Surface liveness without opening the trace: a thin status line /
+progress bar driven by tool activity and structured `enumerate` trace fields, plus current tool
+name and running/done state.
+- **Verify:** progress advances during a live run and resolves on `done`.
 
 ---
 
 ## Human-gated — needs the owner (do NOT fabricate)
 
-- **Real SYSTEM prompt** — v1 is drafted and wired into `agent.py` (drives: list_topics →
-  drill-down → granular `search_topic` → widen with semantic/keyword → `add_to_report` live →
-  `mark_inspected` → poll `coverage_status` until `remaining==[]`). **Owner to review/refine**,
-  especially the new relevance-tagging + answer-block instructions once U3's contract is set.
-- **Golden answer key** — hand-built true answer set for ONE `golden_queries.txt` query; needs
+- **Golden answer key** — hand-built true answer set for one `golden_queries.txt` query; needs
   corpus-owner knowledge to judge true recall.
+
+> **SYSTEM prompt is no longer broadly owner-gated.** The 2026-05-30 revision below resolved the
+> shape-branching, answer-block, and entity-guardrail questions explicitly. Future SYSTEM tweaks
+> are normal engineering — only changes that re-target the agent's core stance (e.g. dropping
+> coverage-map mode entirely, switching to deterministic relevance) need owner sign-off.
 
 ## Validation (after the prompt + key exist)
 
@@ -251,10 +321,9 @@ These were deliberate and hard-won; a fresh agent may be tempted to "simplify" t
 - **Agentic-iterative, not one-pass retrieval.** The agent calls search as a tool and loops.
   Exhaustiveness comes from **enumerable denominators** (the issue table AND the topic index),
   not from telling the model "be thorough." Two denominators on purpose.
-- **Claude Agent SDK, not the raw Client SDK.** The SDK **compacts context**, so coverage state
-  MUST live in tools (`mark_inspected`/`coverage_status`), never in the transcript. And that state
-  is **per-run** (`_inspected_var` contextvar) so the long-lived server can't leak coverage across
-  queries — do not revert it to a module global.
+- **Claude Agent SDK, not the raw Client SDK.** The SDK **compacts context**, so durable run state
+  must live outside the model transcript. Current active coverage accounting comes from structured
+  tool events such as `enumerate`, not from model memory.
 - **Tool lockdown via `can_use_tool` is mandatory**, and `can_use_tool` only fires when `query()`
   is fed a **streaming async-iterable prompt** (see `run_agent`). A plain string prompt silently
   bypasses the lockdown and the agent shells out via Bash. Keep the streaming prompt.
@@ -287,7 +356,7 @@ These were deliberate and hard-won; a fresh agent may be tempted to "simplify" t
 ## Map of the repo
 
 - **Build scripts:** `build_issues.py`, `build_cards.py`, `build_topics.py`, `build_index.py`.
-- **Runtime:** `agent.py` (11 eom tools + SDK + lanes; drafted SYSTEM), `server.py`,
+- **Runtime:** `agent.py` (7 eom tools + SDK + lanes; shape-aware SYSTEM), `server.py`,
   `static/index.html`, `eval_run.py` (headless eval).
 - **Indexes** (`index/`, amortized): `issues.jsonl`, `cards.jsonl`, `page_topics_raw.jsonl`,
   `page_topics.jsonl`, `topics.json`, `embeddings.npy`, `bm25.pkl`, `pages.json`.

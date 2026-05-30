@@ -13,7 +13,9 @@ Writes pages_enriched.jsonl and prints stats.
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter, defaultdict
+from datetime import date as _date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,16 +63,62 @@ def disclaimer_signal(text: str) -> tuple[int, float]:
     return hits, density
 
 
+_MONTHS = {
+    "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
+    "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
+    "aug": 8, "august": 8, "sep": 9, "sept": 9, "september": 9,
+    "oct": 10, "october": 10, "nov": 11, "november": 11, "dec": 12, "december": 12,
+}
+_DATE_PARSE = re.compile(
+    r"([A-Za-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+((?:19|20)\d{2})"
+)
+
+
+def parse_date(value: str | None) -> _date | None:
+    if not value:
+        return None
+    m = _DATE_PARSE.search(value)
+    if not m:
+        return None
+    month = _MONTHS.get(m.group(1).lower())
+    if not month:
+        return None
+    try:
+        return _date(int(m.group(3)), month, int(m.group(2)))
+    except ValueError:
+        return None
+
+
 def main() -> None:
     pages = [json.loads(l) for l in IN.open()]
     print(f"Loaded {len(pages)} pages")
 
-    # 1. Date propagation forward (chronological order assumption)
+    # 1. Date propagation forward (chronological order assumption).
+    # A detected date that jumps backward by >1 year vs the current rolling
+    # date can't be a header date in a chronologically-ordered document — it's
+    # a body-text reference (citation to a prior chart, treatise, etc.). Drop
+    # it. Small backward jumps (days/weeks) are tolerated since issues can be
+    # near-simultaneous or slightly mis-ordered.
+    BACKWARD_TOLERANCE_DAYS = 365
     current_date = None
+    current_parsed: _date | None = None
+    rejected = 0
     for p in pages:
-        if p.get("date"):
-            current_date = p["date"]
+        raw = p.get("date")
+        if raw:
+            parsed = parse_date(raw)
+            if (
+                current_parsed is not None
+                and parsed is not None
+                and (current_parsed - parsed).days > BACKWARD_TOLERANCE_DAYS
+            ):
+                rejected += 1
+            else:
+                current_date = raw
+                if parsed is not None:
+                    current_parsed = parsed
         p["issue_date"] = current_date
+    print(f"Rejected {rejected} large backward-in-time date detections (likely body-text refs)")
 
     # 2. Position within issue
     last_date = None
