@@ -62,11 +62,23 @@ async def collect(query: str) -> dict[str, Any]:
     committed_pages: set[int] = set()
     cited_pages: set[int] = set()
     answer_pages: set[int] = set()
+    run_meta: dict[str, Any] = {}
     events = 0
     started = time.perf_counter()
     async for event in run_agent(query):
         events += 1
         cited_pages.update(event_pages(event))
+        if event.get("lane") == "trace" and event.get("type") == "done":
+            # Authoritative end-of-run accounting (reconciled by run_agent): billed cost, real token
+            # total, SDK turn count, and the SDK's own wall-clock. This is what the latency/cost work
+            # measures against — see ACTIVE item 1 in TODO.md.
+            run_meta = {
+                "cost_total": event.get("cost_total"),
+                "total_tokens": event.get("total_tokens"),
+                "num_turns": event.get("num_turns"),
+                "duration_ms": event.get("duration_ms"),
+                "is_error": bool(event.get("is_error")),
+            }
         if event.get("lane") == "report":
             report_items += 1
             if event.get("kind") in {"quote", "chart"}:
@@ -101,6 +113,11 @@ async def collect(query: str) -> dict[str, Any]:
     return {
         "query": query,
         "elapsed_sec": round(elapsed, 3),
+        "cost_total": run_meta.get("cost_total"),
+        "total_tokens": run_meta.get("total_tokens"),
+        "num_turns": run_meta.get("num_turns"),
+        "duration_ms": run_meta.get("duration_ms"),
+        "is_error": run_meta.get("is_error"),
         "events": events,
         "tool_call_count": len(tool_calls),
         "tool_path": [str(call.get("name") or "") for call in tool_calls],
@@ -154,6 +171,16 @@ async def main() -> None:
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return
     print(f"elapsed: {result['elapsed_sec']:.3f}s")
+    # Authoritative latency/cost line — the metrics ACTIVE item 1 in TODO.md asks you to record.
+    cost = result.get("cost_total")
+    dur = result.get("duration_ms")
+    cost_str = f"${cost:.4f}" if cost is not None else "$n/a"
+    wall_str = f"  sdk_wall={dur / 1000:.1f}s" if dur else ""
+    err_str = "  ERROR" if result.get("is_error") else ""
+    print(
+        f"run: {cost_str}  tokens={result.get('total_tokens') or 'n/a'}  "
+        f"turns={result.get('num_turns') or 'n/a'}{wall_str}{err_str}"
+    )
     print(f"events: {result['events']}")
     print(f"tool calls: {result['tool_call_count']}")
     print("tool path:")

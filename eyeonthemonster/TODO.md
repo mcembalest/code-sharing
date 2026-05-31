@@ -15,8 +15,19 @@ and judge output quality directly). A formal golden key is **optional** (owner d
   `ANTHROPIC_API_KEY` are both present and working.
 - **You build; the runtime agent is Claude** (`claude-agent-sdk`; current model is
   `claude-sonnet-4-6`). Don't swap the runtime to another provider.
-- **Env is pre-synced** (`uv sync` done). Use `uv run …`. UI: `uv run uvicorn server:app`
+- **Env is pre-synced** (`uv sync` done). Use `uv run …`. UI (local): `uv run uvicorn server:app`
   (serves on `http://127.0.0.1:8000`).
+- **Deployed on Modal** (live as of 2026-05-31). `modal_app.py` packages the repo as an ASGI app
+  (`server:app`) under Modal app name **`eyeonthemonster`**; deploy/update with
+  `uv run modal deploy modal_app.py` (or `uv run modal serve modal_app.py` for a hot-reload dev URL).
+  - **Keys on Modal come from the Modal Secret `eyeonthemonster-secrets`, NOT `.env`** (`.env` is
+    excluded from the image upload). The secret must hold `ANTHROPIC_API_KEY` (runtime agent) and
+    `GEMINI_API_KEY` (only needed if you rebuild vision cards). `load_dotenv` is a no-op on Modal —
+    the secret is injected as env vars, which is what `agent.py` reads.
+  - The image installs the `claude` CLI (`@anthropic-ai/claude-code`) because `claude-agent-sdk`
+    shells out to it; the 244 MB PDF and `index/` are uploaded via `add_local_dir` (`_diag`,
+    `baseline`, `.env`, `*.png`, `.venv` are ignored). Function `timeout=600s` — coverage queries
+    run 7–9 min, so a single deep query fits but is close to the ceiling (see latency item).
 - **Browser-with-vision is wired for the next session.** A project-scoped `.mcp.json` at the repo
   root registers the **Playwright MCP** (`npx @playwright/mcp@latest`). It is NOT active until
   Claude Code is restarted and the server is approved at startup; first call downloads Chromium.
@@ -33,7 +44,14 @@ and judge output quality directly). A formal golden key is **optional** (owner d
   (no API cost — raw topics in `page_topics_raw.jsonl` are cached) then
   `uv run python build_index.py`. Full rebuild ~3 min, dominated by the phrase linkage.
 
-## Current state (updated 2026-05-30) — pipeline COMPLETE + hardened
+## Current state (updated 2026-05-31) — pipeline COMPLETE + hardened + DEPLOYED
+
+> **For a fresh agent (incl. Codex):** the pipeline + product UI are built, hardened, gate-passed
+> (see *Done 2026-05-31*), committed, and deployed to Modal. The single open thrust is **latency /
+> cost on deep coverage queries** — start at *★ ACTIVE / NEXT SESSION*. Measure with
+> `uv run python eval_run.py "<query>"` (now prints a `run: $cost tokens=… turns=… sdk_wall=…s`
+> line). No owner-gated blocker remains; release is judged by testing + judgment, not a golden key.
+
 
 - ✅ **W1 cards** — `build_cards.py` → `index/cards.jsonl`, ~2,300 chart-bearing pages.
 - ✅ **W2 topics** — `build_topics.py` → `page_topics_raw.jsonl` (raw, cached), `page_topics.jsonl`,
@@ -248,11 +266,19 @@ become stale. Current state:
 
 ## ★ ACTIVE / NEXT SESSION — latency + testing
 
-1. Re-measure "Earliest Bitcoin mention + evolution" after the 2026-05-30 shape-aware prompt and
-   current UI/runtime changes. Record wall-clock, tool-call count, token/cost total, and cited pages.
-2. Optimize the remaining avoidable LLM turns without weakening recall. Candidate areas:
-   redundant widening searches, unnecessary manual `add_to_report` calls after `enumerate`, and
-   independent tool calls that could run concurrently if the SDK/runtime supports it.
+1. Re-measure the expensive coverage queries after the 2026-05-30 shape-aware prompt + current
+   runtime. Recipe: `uv run python eval_run.py "<query>"` — read the `run:` line (cost / tokens /
+   turns / sdk_wall) plus tool path and committed/cited pages. Baselines to beat (measured
+   2026-05-31, sonnet): *got-wrong* 533s / $2.45 / 65 turns; *open-questions* 444s / $1.40 / 46
+   turns; the older *Bitcoin* coverage query ~$1.68. Record the same fields per query.
+2. Optimize the remaining avoidable LLM turns without weakening recall. Concrete levers, in order:
+   (a) ~half the tool calls on the analytical runs were trailing manual `add_to_report` building the
+   synthesis one finding at a time — enumerate/find_mentions already auto-commit, so the agent should
+   compose the answer block from their accounting, not re-commit per page; (b) redundant widening
+   `search` passes; (c) independent tool calls that could run concurrently if the SDK/runtime permits.
+   Re-measure with the item-1 recipe after each lever; the bar is fewer turns at equal cited-page
+   coverage. NOTE: Modal `web` function `timeout=600s` — got-wrong at 533s is already near it, so
+   cutting turns also de-risks deploy timeouts.
 3. Run the 5 `golden_queries.txt` queries (+ ad-hoc Cembalest-voice queries) through the UI and/or
    `eval_run.py` and **judge output quality directly** — coverage breadth, citation fidelity, and
    whether the analytical ones (got-wrong, open-questions) actually decompose. Compare against the
@@ -416,11 +442,11 @@ These were deliberate and hard-won; a fresh agent may be tempted to "simplify" t
 
 - **Build scripts:** `build_issues.py`, `build_cards.py`, `build_topics.py`, `build_index.py`.
 - **Runtime:** `agent.py` (7 eom tools + SDK + lanes; shape-aware SYSTEM), `server.py`,
-  `static/index.html`, `eval_run.py` (headless eval).
+  `static/index.html`, `eval_run.py` (headless eval; prints the `run:` cost/turns/latency line).
+- **Deploy:** `modal_app.py` (Modal ASGI wrapper; app `eyeonthemonster`, secret
+  `eyeonthemonster-secrets`).
 - **Indexes** (`index/`, amortized): `issues.jsonl`, `cards.jsonl`, `page_topics_raw.jsonl`,
   `page_topics.jsonl`, `topics.json`, `embeddings.npy`, `bm25.pkl`, `pages.json`.
 - **Inputs/reference:** `_diag/pages_clean.jsonl` (canonical page data), `golden_queries.txt`,
   `baseline/golden_results.md` (text-only baseline), `review_cards.py` (card QA tool).
 - Vision: `gemini-3.5-flash`. Embeddings: `static-retrieval-mrl-en-v1` (`MODEL_NAME`, swappable).
-</content>
-</invoke>
