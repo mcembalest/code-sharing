@@ -19,3 +19,6 @@ trace.md
 .playwright-mcp/
 *.png
 
+# Claude Code scheduled-wakeup lock (local scratch, not a tracked artifact)
+.claude/scheduled_tasks.lock
+
