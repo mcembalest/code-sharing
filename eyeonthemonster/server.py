@@ -69,11 +69,25 @@ async def run(q: str, model: str | None = None) -> StreamingResponse:
     )
 
 
+@app.get("/favicon.ico")
+def favicon() -> Response:
+    # Silence the browser's default favicon request (otherwise a console 404 on every load).
+    return Response(status_code=204)
+
+
+@app.get("/meta")
+def meta() -> dict:
+    # Total monster-PDF page count, so the page viewer can bound its prev/next navigation.
+    return {"pages": len(PDF)}
+
+
 @app.get("/page_image/{n}")
-def page_image(n: int) -> Response:
+def page_image(n: int, dpi: int = 130) -> Response:
     if n < 1 or n > len(PDF):
         return Response("page not found", status_code=404)
-    pix = PDF.load_page(n - 1).get_pixmap(dpi=130, alpha=False)
+    # dpi is the viewer's zoom control; clamp so a stray value can't ask for a giant render.
+    dpi = max(72, min(int(dpi), 220))
+    pix = PDF.load_page(n - 1).get_pixmap(dpi=dpi, alpha=False)
     return Response(pix.tobytes("png"), media_type="image/png")
 
 

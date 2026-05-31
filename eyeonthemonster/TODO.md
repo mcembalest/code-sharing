@@ -2,8 +2,10 @@
 
 Read this top-to-bottom, then `BUILD_BRIEF.md` for original project context. The retrieval/agent
 pipeline (W1-W5) is built, runs end-to-end, and has been hardened (see *Done*). The product UI
-v1 is now built and browser-verified. Remaining work is mostly **latency measurement/optimization**,
-the **Human-gated** golden key, and validation.
+v1 is now built and browser-verified. Remaining work is mostly **latency measurement/optimization**
+and **validation by testing + judgment** (run representative queries through the UI / `eval_run.py`
+and judge output quality directly). A formal golden key is **optional** (owner decision 2026-05-31)
+— useful for a recall number later, NOT a release gate.
 
 ## Prerequisites
 
@@ -135,6 +137,56 @@ the **Human-gated** golden key, and validation.
   - Relevance tagging kept LLM-driven for manual commits; `enumerate` assigns primary/supporting
     by query similarity for bulk findings.
 
+### Done 2026-05-31 — release-gate quick wins (narrow-answer + denylist)
+
+Go/no-go gate pass. **Release is gated on testing + judgment, not a formal golden key / validation
+set** (owner decision 2026-05-31): run representative queries through the UI / `eval_run.py` and
+judge output quality directly. Remaining gate items are now just **latency on coverage queries** and
+a **judgment pass over the analytical archetype** (got-wrong / open-questions). Two shippable defects
+found and fixed this session:
+
+- ✅ **Narrow/temporal answer gap.** Live "did I write about the iPhone in 2007?" dumped 7 all-time
+  iPhone quotes with NO verdict — the user had to infer the temporal answer. Root causes: (a) the
+  SYSTEM answer-block rule made the block OPTIONAL for narrow queries, (b) the `run_agent` promotion
+  net only fired when the report was *empty*, so the quotes suppressed it. Fixed in `agent.py`:
+  SYSTEM now REQUIRES a one-/two-sentence verdict block for yes/no / temporal / superlative /
+  negative narrow queries (+ a date_range nudge so "in 2007" actually scopes), and the promotion
+  net now fires whenever no `answer` block was emitted (tracked via `answer_seen`, not report
+  presence). Re-run verdict is now correct: *"No iPhone mention in 2007 … earliest is October 2009
+  [p. 505] … later mentions Apple–FBI 2017 [pp. 2430–2435], CHIPS Act 2023 [p. 3908], antitrust
+  2024 [pp. 4151, 4215, 4326]."*
+- ✅ **Stale `disallowed_tools` vs CLI 2.1.158.** The agent wasted a turn calling `ToolSearch`
+  (a new 2.x built-in not in the denylist) before `can_use_tool` denied it. The `can_use_tool`
+  allowlist is the real lockdown and held — but the offered-tool denylist now also lists
+  `ToolSearch, Task, TodoWrite, ExitPlanMode, BashOutput, KillShell, SlashCommand, MultiEdit`,
+  so the model no longer reaches for them. Verified: clean tool path, no ToolSearch.
+
+- ✅ **Analytical archetype VALIDATED (judgment pass, gate item #2).** Ran both analytical golden
+  queries live and judged output as the author. Both clear the bar **decisively** — this was the
+  highest-risk archetype (not similarity-findable) and it works:
+  - *"What did I get wrong"*: 533s / $2.45 / 65 turns. Found real verbatim retractions — Sept-2008
+    "we were wrong" [p. 263], the 2009→2011 housing-attribution retraction "maybe the biggest
+    estimation miss ever" [pp. 829–843], the decade of wrong rate forecasts (the "oops chart"),
+    Bitcoin "wrong on Bitcoin" (2025), Argentina/Milei — plus a correct meta-pattern synthesis.
+  - *"Open questions"*: 444s / $1.40 / 46 turns. 9 thematic clusters WITH per-question resolution
+    status (⟨unresolved⟩ / ⟨answered by shale boom⟩ / ⟨answered catastrophically in 2022⟩) — exactly
+    the resolved-vs-unresolved decomposition the query asked for.
+- ✅ **find_mentions auto-commit flood fixed (volume-gated relevance).** The testing surfaced a real
+  defect: find_mentions marked EVERY exact-match page `primary`, so phrase-heavy analytical queries
+  (10–20 find_mentions calls on fuzzy phrases like "watch for", "we don't know") buried the synthesis
+  under hundreds of raw quotes (14 "Exact mentions:" dump headings before the curated sections) and
+  even marked off-target pages primary (the iPod page p.505 surfaced as "primary" for an open-questions
+  query). Fix in `agent.py`: `FIND_MENTIONS_PRIMARY_MAX=12` — a call returning ≤12 hits (distinctive
+  entity) stays `primary`; >12 (common phrase) commits as `supporting` so the U3 UI tucks it behind the
+  per-section disclosure. Verified directly (no LLM): iPhone (7)→primary, "remains to be seen" (22) and
+  "watch for" (13)→supporting. The answer block was always clean; this declutters the report *body*.
+- ⬜ **Remaining gate item: latency/cost on deep coverage queries.** 7–9 min and $1.4–$2.5 per
+  analytical run (the shape-aware prompt did NOT tame this; got-wrong is pricier than the $1.68 Bitcoin
+  baseline). ~half the tool calls are trailing manual `add_to_report`. Acceptable for once-in-a-while
+  deep dives given the UI progress bar, but it's the one open product bottleneck. Also: **0 charts**
+  surfaced on either analytical run over a chart-heavy corpus — worth a look (enumerate/chart_only on
+  the curated synthesis, or the agent isn't reaching for charts on analytical shapes).
+
 ### Open observations from 2026-05-30 stress test (not yet acted on)
 
 Five Cembalest-voice queries through the live UI exposed these still-open issues:
@@ -194,16 +246,19 @@ become stale. Current state:
 - ⬜ Remaining optimization work: measure the same expensive coverage query before/after the prompt
   changes, then reduce avoidable LLM turns and parallelize independent tool calls where possible.
 
-## ★ ACTIVE / NEXT SESSION — latency + validation
+## ★ ACTIVE / NEXT SESSION — latency + testing
 
 1. Re-measure "Earliest Bitcoin mention + evolution" after the 2026-05-30 shape-aware prompt and
    current UI/runtime changes. Record wall-clock, tool-call count, token/cost total, and cited pages.
 2. Optimize the remaining avoidable LLM turns without weakening recall. Candidate areas:
    redundant widening searches, unnecessary manual `add_to_report` calls after `enumerate`, and
    independent tool calls that could run concurrently if the SDK/runtime supports it.
-3. Build the human golden key for one `golden_queries.txt` query with the owner.
-4. Run the 5 golden queries through the UI and/or `eval_run.py`; compare committed/cited pages to
-   the golden key and to `baseline/golden_results.md`.
+3. Run the 5 `golden_queries.txt` queries (+ ad-hoc Cembalest-voice queries) through the UI and/or
+   `eval_run.py` and **judge output quality directly** — coverage breadth, citation fidelity, and
+   whether the analytical ones (got-wrong, open-questions) actually decompose. Compare against the
+   text-only baseline in `baseline/golden_results.md`. No formal scored recall required to ship.
+4. (Optional, NOT a gate) If a recall number is later wanted, hand-build a golden key for one query
+   with the owner and score via `eval_run.py --golden`.
 
 ## PRODUCT VISION — the two-panel report UI (U-series)
 
@@ -286,20 +341,24 @@ name and running/done state.
 
 ## Human-gated — needs the owner (do NOT fabricate)
 
-- **Golden answer key** — hand-built true answer set for one `golden_queries.txt` query; needs
-  corpus-owner knowledge to judge true recall.
+- **Golden answer key (OPTIONAL — not a release gate).** A hand-built true answer set would let
+  `eval_run.py --golden` print a recall/precision number; it needs corpus-owner knowledge. Per the
+  2026-05-31 owner decision, release is judged by testing + eyeballing output, not by this key — so
+  it is a nice-to-have for later quantification, not a blocker.
 
 > **SYSTEM prompt is no longer broadly owner-gated.** The 2026-05-30 revision below resolved the
 > shape-branching, answer-block, and entity-guardrail questions explicitly. Future SYSTEM tweaks
 > are normal engineering — only changes that re-target the agent's core stance (e.g. dropping
 > coverage-map mode entirely, switching to deterministic relevance) need owner sign-off.
 
-## Validation (after the prompt + key exist)
+## Validation by testing + judgment
 
-Run the 5 golden queries through the UI; confirm the agent enumerates topics/issues on exhaustive
-queries and decomposes the analytical ones (got-wrong, open-questions). Score cited pages (via
-`eval_run.py`) against the golden key. Compare against the text-only baseline in
-`baseline/golden_results.md`.
+Run the 5 golden queries (+ ad-hoc Cembalest-voice queries) through the UI; confirm the agent
+enumerates topics/issues on exhaustive queries and decomposes the analytical ones (got-wrong,
+open-questions). Judge output directly: coverage breadth, citation fidelity (`[p. N]` correctness,
+verbatim quotes from content_text), and whether the answer block reads as a useful verdict. Compare
+against the text-only baseline in `baseline/golden_results.md`. Scoring against a golden key
+(`eval_run.py --golden`) is optional — for a later recall number, not required to ship.
 
 ## Smaller follow-ups / smells
 

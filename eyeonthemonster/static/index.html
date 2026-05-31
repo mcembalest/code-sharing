@@ -415,6 +415,118 @@
   #ask-banner .ask-q { font-weight: 600; margin-bottom: .25rem; color: #2f2611; }
   #ask-banner .ask-why { color: #6e5d2f; font-size: 12px; }
   #ask-banner .ask-hint { color: #8a7644; font-size: 11px; margin-top: .35rem; font-style: italic; }
+
+  /* Clickable [p. N] citations. Every page reference in a finding, caption, or answer becomes a
+     button that opens the rendered monster-PDF page in the viewer. */
+  .pageref {
+    color: var(--accent);
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 1px dotted var(--accent);
+    white-space: nowrap;
+  }
+  .pageref:hover { background: var(--accent-soft); }
+  blockquote .cite .pageref { border-bottom: none; }
+  figure img { cursor: zoom-in; }
+
+  /* Stop button — visible only while a run is in flight. */
+  #stop {
+    padding: .5rem .8rem;
+    border: 1px solid var(--danger);
+    background: #fff;
+    color: var(--danger);
+  }
+  #stop[hidden] { display: none; }
+
+  /* Recent-queries menu */
+  #recents-wrap { position: relative; }
+  #recents-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 320px;
+    max-width: 460px;
+    max-height: 60vh;
+    overflow: auto;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.16);
+    z-index: 40;
+    padding: .3rem;
+  }
+  #recents-menu[hidden] { display: none; }
+  #recents-menu .recent-empty { padding: .6rem .7rem; color: var(--muted); font-size: 12px; }
+  #recents-menu button.recent {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: #fff;
+    padding: .5rem .6rem;
+    border-radius: 3px;
+    color: var(--ink);
+    white-space: normal;
+    line-height: 1.35;
+  }
+  #recents-menu button.recent:hover { background: var(--field); }
+  #recents-menu button.recent .recent-q { font-size: 13px; }
+  #recents-menu button.recent .recent-meta { font-size: 11px; color: var(--muted); margin-top: .15rem; }
+
+  /* Page viewer modal — opens the actual monster PDF page behind a citation. */
+  #viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    background: rgba(15,20,24,.82);
+    backdrop-filter: blur(3px);
+  }
+  #viewer[hidden] { display: none; }
+  #viewer-bar {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .55rem .9rem;
+    background: #1b2227;
+    color: #e9ecef;
+    border-bottom: 2px solid var(--accent);
+    flex: 0 0 auto;
+  }
+  #viewer-bar .vtitle { font-weight: 700; letter-spacing: .04em; }
+  #viewer-bar .vspacer { flex: 1; }
+  #viewer-bar button {
+    border: 1px solid #3a454c;
+    background: #2a333a;
+    color: #e9ecef;
+    padding: .4rem .7rem;
+  }
+  #viewer-bar button:hover:not(:disabled) { border-color: var(--accent); }
+  #viewer-bar #v-pagenum {
+    width: 4.5rem;
+    text-align: center;
+    background: #11171b;
+    border: 1px solid #3a454c;
+    color: #e9ecef;
+    border-radius: 2px;
+    padding: .35rem;
+    font: inherit;
+  }
+  #viewer-bar .v-open { color: #9fe0ec; text-decoration: none; align-self: center; font-size: 12px; }
+  #viewer-scroll { flex: 1 1 auto; overflow: auto; display: flex; justify-content: center; padding: 1.2rem; }
+  #viewer-img {
+    max-width: min(1000px, 100%);
+    height: max-content;
+    align-self: flex-start;
+    background: #fff;
+    box-shadow: 0 6px 30px rgba(0,0,0,.4);
+    transition: opacity .12s ease;
+  }
+  #viewer-img.loading { opacity: .35; }
+  @media (max-width: 820px) {
+    #recents-menu { min-width: 78vw; right: -1rem; }
+  }
 </style>
 
 <div id="bar">
@@ -426,6 +538,12 @@
     <option value="opus">Opus 4.8</option>
   </select>
   <button id="run" onclick="go()">Run</button>
+  <button id="stop" hidden onclick="stopRun()" title="Stop this run (Esc)">Stop</button>
+  <button id="new" class="ghost" onclick="newSearch()" title="Clear and start fresh">New</button>
+  <div id="recents-wrap">
+    <button id="recents-btn" class="ghost" aria-expanded="false" onclick="toggleRecents()" title="Recent queries">Recent &#9662;</button>
+    <div id="recents-menu" hidden></div>
+  </div>
   <button id="download-pdf" class="ghost" disabled>Download PDF</button>
   <button id="toggle" class="ghost" aria-expanded="false">Agent trace &#9656;</button>
 </div>
@@ -443,6 +561,20 @@
   </div>
   <div id="trace-list"></div>
 </aside>
+
+<div id="viewer" hidden role="dialog" aria-modal="true" aria-label="Monster PDF page viewer">
+  <div id="viewer-bar">
+    <span class="vtitle">Eye on the Monster</span>
+    <button id="v-prev" title="Previous page (&larr;)">&larr; Prev</button>
+    <input id="v-pagenum" type="number" min="1" inputmode="numeric" aria-label="Page number">
+    <button id="v-next" title="Next page (&rarr;)">Next &rarr;</button>
+    <button id="v-zoom" title="Toggle zoom">Zoom +</button>
+    <a id="v-open" class="v-open" target="_blank" rel="noopener">Open image &#8599;</a>
+    <span class="vspacer"></span>
+    <button id="v-close" title="Close (Esc)">Close &times;</button>
+  </div>
+  <div id="viewer-scroll"><img id="viewer-img" alt=""></div>
+</div>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -486,18 +618,30 @@ function updateCostPanel(ev) {
     costTurns += 1;
     costTokens += (ev.input_tokens || 0) + (ev.output_tokens || 0)
       + (ev.cache_read_tokens || 0) + (ev.cache_write_tokens || 0);
-    $('cost-big').textContent = fmtCost(ev.cost_total);
-    $('cost-big').classList.add('estimate'); // live figure is an estimate until the run finishes
+    // Live figure is a LOWER-BOUND estimate: per-turn output_tokens arrive stubbed (~1) and the real
+    // output only lands at `done`, so prefix '~' to signal it will firm up (and rise) on completion.
+    $('cost-big').textContent = '~' + fmtCost(ev.cost_total);
+    $('cost-big').classList.add('estimate');
     $('cost-turns').textContent = fmtNum(costTurns);
     $('cost-tokens').textContent = fmtNum(costTokens);
   }
   if (ev.type === 'done') {
     if (costElapsedTimer) { clearInterval(costElapsedTimer); costElapsedTimer = null; }
+    // Reconcile to the SDK's authoritative totals: exact billed cost and real token count (which
+    // includes the output our live snapshots stubbed). Drop the '~' — this is the real number now.
     if (ev.cost_total != null) $('cost-big').textContent = fmtCost(ev.cost_total);
-    $('cost-big').classList.remove('estimate'); // reconciled to the SDK's authoritative total
+    if (ev.total_tokens) $('cost-tokens').textContent = fmtNum(ev.total_tokens);
+    $('cost-big').classList.remove('estimate');
     // Intentionally not reconciling cost-turns to ev.num_turns: the SDK counts every message
     // (assistant + tool_result), while the trace cards count model decisions. Keep them aligned.
     if (ev.duration_ms != null) $('cost-elapsed').textContent = fmtMs(ev.duration_ms);
+    // Resolve any turn card whose usage snapshot never arrived (e.g. the final answer turn): its
+    // cost is folded into the authoritative total above, so retire the "awaiting usage" placeholder.
+    document.querySelectorAll('.turn-header.pending').forEach(h => {
+      h.classList.remove('pending');
+      const stats = h.querySelector('.turn-stats');
+      if (stats && /awaiting usage/.test(stats.textContent)) stats.textContent = 'usage in run total';
+    });
   }
 }
 let currentTool = '';
@@ -668,7 +812,7 @@ function findingHtml(ev) {
   }
   if (ev.kind === 'chart') {
     const caption = `${ev.caption || 'Chart'} [p. ${ev.page}]`;
-    return `<figure><img src="/page_image/${encodeURIComponent(ev.page)}" loading="lazy" alt="Page ${esc(ev.page)} chart"><figcaption><span class="ai-label">AI chart description</span> ${esc(caption)}</figcaption></figure>`;
+    return `<figure><img src="/page_image/${encodeURIComponent(ev.page)}" data-page="${esc(ev.page)}" loading="lazy" alt="Page ${esc(ev.page)} chart" title="Click to open page ${esc(ev.page)}"><figcaption><span class="ai-label">AI chart description</span> ${esc(caption)}</figcaption></figure>`;
   }
   return marked.parse(ev.text || '');
 }
@@ -693,6 +837,7 @@ function addFinding(ev) {
   const node = document.createElement('article');
   node.className = 'finding ' + (supporting ? 'supporting-finding' : 'primary-finding');
   node.innerHTML = findingHtml(ev);
+  wirePageLinks(node);
   if (ev.src) node.dataset.src = ev.src;
   addProvenanceChip(node, ev.src);
 
@@ -714,6 +859,7 @@ function addFinding(ev) {
 function showAnswer(ev) {
   answerText = ev.text || '';
   answerSlot.innerHTML = '<div class="answer-label">Answer</div>' + marked.parse(answerText);
+  wirePageLinks(answerSlot);
   answerSlot.hidden = false;
   reportEvents.push(ev);
   setExportEnabled(true);
@@ -893,7 +1039,7 @@ function onTrace(ev) {
   }
   updateProgressFromTrace(ev);
   if (ev.type === 'done') {
-    $('run').disabled = false;
+    setRunning(false);
     const label = ev.is_error ? 'Run ended with errors' : 'Run complete';
     setStatus(ev.is_error ? 'error' : 'done', label, coverage ? `Inspected ${coverage.inspected}/${coverage.total} issues` : '');
     if (!ev.is_error && (!coverage || coverage.total === 0 || coverage.inspected >= coverage.total)) {
@@ -926,13 +1072,14 @@ function go() {
   nextEventStartsCard = true;
   $('ask-banner').classList.remove('show');
   $('ask-banner').innerHTML = '';
-  $('run').disabled = true;
+  setRunning(true);
   stick = true;
   setStatus('running', 'Starting', '');
   const modelChoice = $('model') ? $('model').value : '';
   if (modelChoice) {
     try { localStorage.setItem('agentModel', modelChoice); } catch (_) {}
   }
+  saveRecent($('q').value, modelChoice);
   const modelParam = modelChoice ? ('&model=' + encodeURIComponent(modelChoice)) : '';
   current = new EventSource('/run?q=' + encodeURIComponent($('q').value) + modelParam);
   current.onmessage = e => {
@@ -943,12 +1090,12 @@ function go() {
   };
   current.addEventListener('done', () => {
     runFinished = true;
-    $('run').disabled = false;
+    setRunning(false);
     if (current) current.close();
   });
   current.onerror = () => {
     if (runFinished) return;
-    $('run').disabled = false;
+    setRunning(false);
     setStatus('error', 'Stream disconnected', '');
     if (current) current.close();
   };
@@ -1030,6 +1177,237 @@ $('download-pdf').onclick = async () => {
     if (button.textContent === 'Building PDF') button.textContent = previous;
   }
 };
+
+// ---- Run-state toggle: Run disabled + Stop visible only while a run is in flight ----
+function setRunning(running) {
+  $('run').disabled = running;
+  $('stop').hidden = !running;
+}
+
+// Stop the current run. Closing the EventSource disconnects the client; the server's streaming
+// generator is cancelled on disconnect, so the agent stops doing (and billing) work. close() does
+// not fire onerror, so we settle the UI state here.
+function stopRun() {
+  if (current) { current.close(); current = null; }
+  runFinished = true;
+  setRunning(false);
+  if (costElapsedTimer) { clearInterval(costElapsedTimer); costElapsedTimer = null; }
+  $('cost-big').classList.remove('estimate');
+  setStatus('done', 'Stopped', 'Run stopped by you — refine and run again, or keep what was found.');
+  setProgress(progressPct);
+}
+
+// Clear everything and return to a blank slate.
+function newSearch() {
+  if (current) { current.close(); current = null; }
+  runFinished = true;
+  setRunning(false);
+  resetReport();
+  resetCostPanel();
+  $('trace-list').innerHTML = '';
+  traceEvents = [];
+  currentTool = '';
+  currentCard = null;
+  currentTurnNum = 0;
+  nextEventStartsCard = true;
+  $('ask-banner').classList.remove('show');
+  $('ask-banner').innerHTML = '';
+  $('q').value = '';
+  $('q').focus();
+}
+
+// ---- Clickable [p. N] / [pp. N-M] citations -> page viewer ----
+const CITE_RE = /\[pp?\.\s*(\d+)(?:\s*[-–—]\s*(\d+))?\]/g;
+
+function linkifyCitations(root) {
+  // Walk text nodes and replace [p. N] / [pp. N-M] with a clickable pageref. Skip anything already
+  // interactive (buttons, links, existing pagerefs) so we don't double-wrap.
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue || !/\[pp?\.\s*\d/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+      const p = node.parentElement;
+      if (p && p.closest('a, button, .pageref, code, script')) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const targets = [];
+  let n;
+  while ((n = walker.nextNode())) targets.push(n);
+  for (const textNode of targets) {
+    const text = textNode.nodeValue;
+    const frag = document.createDocumentFragment();
+    let last = 0, m;
+    CITE_RE.lastIndex = 0;
+    while ((m = CITE_RE.exec(text))) {
+      if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const pageNum = Number(m[1]);  // capture per-iteration: `m` is reused and is null after the loop
+      const span = document.createElement('span');
+      span.className = 'pageref';
+      span.textContent = m[0];
+      span.dataset.page = String(pageNum);
+      span.title = 'Open page ' + pageNum + ' in the monster PDF';
+      span.onclick = () => openPage(pageNum);
+      frag.appendChild(span);
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+    textNode.parentNode.replaceChild(frag, textNode);
+  }
+}
+
+function wirePageLinks(root) {
+  linkifyCitations(root);
+  // Chart images open the same page they depict.
+  root.querySelectorAll('img[data-page]').forEach(img => {
+    img.onclick = () => openPage(Number(img.dataset.page));
+  });
+}
+
+// ---- Page viewer modal ----
+let viewerPage = null;
+let viewerTotal = null;
+let viewerZoom = false;
+fetch('/meta').then(r => r.json()).then(d => {
+  viewerTotal = Number(d.pages) || null;
+  // If the viewer opened before the total arrived, re-evaluate the nav bounds now.
+  if (viewerPage && !$('viewer').hidden) showViewerPage(viewerPage);
+}).catch(() => {});
+
+function openPage(n) {
+  if (!Number.isFinite(n) || n < 1) return;
+  $('viewer').hidden = false;
+  document.body.style.overflow = 'hidden';
+  showViewerPage(n);
+}
+
+function showViewerPage(n) {
+  if (viewerTotal) n = Math.max(1, Math.min(n, viewerTotal));
+  else n = Math.max(1, n);
+  viewerPage = n;
+  const img = $('viewer-img');
+  img.classList.add('loading');
+  const dpi = viewerZoom ? 200 : 130;
+  img.onload = () => img.classList.remove('loading');
+  img.onerror = () => img.classList.remove('loading');
+  img.src = `/page_image/${n}?dpi=${dpi}`;
+  img.alt = 'Eye on the Monster, page ' + n;
+  $('v-pagenum').value = n;
+  $('v-open').href = `/page_image/${n}?dpi=220`;
+  $('viewer-bar').querySelector('.vtitle').textContent =
+    'Eye on the Monster — p. ' + n + (viewerTotal ? ' / ' + viewerTotal : '');
+  $('v-prev').disabled = n <= 1;
+  // When the page total is unknown (meta fetch slow/failed), disable Next rather than let the user
+  // page into a 404 that silently leaves the viewer on the prior page.
+  $('v-next').disabled = viewerTotal ? n >= viewerTotal : true;
+  $('viewer-scroll').scrollTop = 0;
+}
+
+function closeViewer() {
+  $('viewer').hidden = true;
+  document.body.style.overflow = '';
+}
+
+$('v-prev').onclick = () => showViewerPage((viewerPage || 1) - 1);
+$('v-next').onclick = () => showViewerPage((viewerPage || 0) + 1);
+$('v-close').onclick = closeViewer;
+$('v-zoom').onclick = () => {
+  viewerZoom = !viewerZoom;
+  $('v-zoom').textContent = viewerZoom ? 'Zoom −' : 'Zoom +';
+  if (viewerPage) showViewerPage(viewerPage);
+};
+$('v-pagenum').addEventListener('change', () => {
+  const v = Number($('v-pagenum').value);
+  if (Number.isFinite(v) && v >= 1) showViewerPage(v);
+});
+$('viewer').addEventListener('click', e => { if (e.target === $('viewer')) closeViewer(); });
+
+// ---- Recent queries (persisted) ----
+const RECENTS_KEY = 'recentQueries';
+
+function loadRecents() {
+  try { return JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]'); } catch (_) { return []; }
+}
+
+function saveRecent(q, model) {
+  q = String(q || '').trim();
+  if (!q) return;
+  let list = loadRecents().filter(r => r.q !== q);
+  list.unshift({ q, model: model || '', ts: Date.now() });
+  list = list.slice(0, 25);
+  try { localStorage.setItem(RECENTS_KEY, JSON.stringify(list)); } catch (_) {}
+}
+
+function fmtAgo(ts) {
+  const s = Math.max(0, (Date.now() - ts) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+}
+
+function renderRecents() {
+  const menu = $('recents-menu');
+  const list = loadRecents();
+  if (!list.length) {
+    menu.innerHTML = '<div class="recent-empty">No recent queries yet.</div>';
+    return;
+  }
+  menu.innerHTML = '';
+  for (const r of list) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'recent';
+    b.innerHTML = `<div class="recent-q">${esc(r.q)}</div>` +
+      `<div class="recent-meta">${esc(r.model || 'sonnet')} · ${fmtAgo(r.ts)}</div>`;
+    b.onclick = () => runRecent(r);
+    menu.appendChild(b);
+  }
+}
+
+function runRecent(r) {
+  closeRecents();
+  $('q').value = r.q;
+  if (r.model && $('model') && [...$('model').options].some(o => o.value === r.model)) {
+    $('model').value = r.model;
+  }
+  go();
+}
+
+function toggleRecents() {
+  const menu = $('recents-menu');
+  if (menu.hidden) {
+    renderRecents();
+    menu.hidden = false;
+    $('recents-btn').setAttribute('aria-expanded', 'true');
+  } else {
+    closeRecents();
+  }
+}
+
+function closeRecents() {
+  $('recents-menu').hidden = true;
+  $('recents-btn').setAttribute('aria-expanded', 'false');
+}
+
+document.addEventListener('click', e => {
+  if (!$('recents-wrap').contains(e.target)) closeRecents();
+});
+
+// ---- Global keyboard: Esc closes viewer/recents or stops a run; arrows page the viewer ----
+document.addEventListener('keydown', e => {
+  if (!$('viewer').hidden) {
+    if (e.key === 'Escape') { closeViewer(); }
+    // Don't hijack arrows while the user is typing a page number in the input.
+    else if (e.target === $('v-pagenum')) { return; }
+    else if (e.key === 'ArrowLeft') { showViewerPage((viewerPage || 1) - 1); }
+    else if (e.key === 'ArrowRight') { showViewerPage((viewerPage || 0) + 1); }
+    return;
+  }
+  if (e.key === 'Escape') {
+    if (!$('recents-menu').hidden) { closeRecents(); return; }
+    if (!$('stop').hidden) { stopRun(); }
+  }
+});
 
 $('q').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
 resetReport();

@@ -5,6 +5,7 @@ import contextvars
 import json
 import pickle
 import re
+import sys
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -75,6 +76,15 @@ def resolve_model(value: str | None) -> str:
     return AGENT_MODELS.get(s.lower(), s)
 
 
+def authoritative_tokens(model_usage: dict[str, Any] | None) -> int:
+    # Sum the real cumulative token counts from ResultMessage.model_usage (per-model breakdown).
+    # Used at `done` to reconcile the live token tally, whose per-turn output was a stub (~1).
+    if not model_usage:
+        return 0
+    fields = ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens")
+    return sum(int(u.get(f, 0) or 0) for u in model_usage.values() for f in fields)
+
+
 def usage_cost(usage: dict[str, Any] | None, model: str | None = None) -> float:
     if not usage:
         return 0.0
@@ -94,7 +104,9 @@ request sentence as q; it dilutes ranking and tanks recall.
 QUERY SHAPE — classify BEFORE retrieval, then match effort to shape
 - NARROW / FACTUAL ("did I mention X in 2007?", "earliest mention of Y", "highest single-issue
   page count"): one targeted lookup. Often answerable from find_mentions + a couple of `get`
-  calls. Produce a short direct prose answer with [p. N] citations. Do NOT open with a
+  calls. When the question names a year or period, pass it as date_range to find_mentions/search
+  so the result actually answers the temporal scope — don't return all-time hits for a "in 2007"
+  question. Produce a short direct prose answer with [p. N] citations. Do NOT open with a
   "Coverage map:" header and do NOT enumerate broad topics — that's over-engineering here.
 - TOPICAL / EXHAUSTIVE ("everything I wrote about X", "my view on X over time", "show me every
   chart of X"): coverage-map mode. Use enumerate as the backbone, group by sub-topic or
@@ -159,11 +171,13 @@ OUTPUT CONTRACT
 - ANSWER BLOCK depends on shape. TOPICAL queries: FINISH by calling add_to_report(kind="answer",
   text=...) exactly once with a compact author-facing coverage map (4–6 bullets / short
   paragraphs; coverage areas, chronology, primary cited pages). Chronology labels must be
-  coherent date ranges ("2014–2026", never reversed). NARROW / FACTUAL queries: an explicit
-  answer block is OPTIONAL — the auto-committed findings often self-suffice. Emit one only when
-  there is genuine synthesis to add (resolving an ambiguity, stating an explicit negative
-  finding like "no, you did not write about the iPhone in 2007"). Don't pad a one-line answer
-  with scaffolding.
+  coherent date ranges ("2014–2026", never reversed). NARROW / FACTUAL queries: ALWAYS finish
+  with a one- or two-sentence answer block when the question is yes/no, temporal ("in 2007"),
+  superlative ("earliest", "highest"), or negative — the reader needs the direct verdict, not a
+  pile of quotes to infer it from. Lead with the verdict and cite ("Yes — first in 2009 [p. N],
+  then [p. M] …"; "No — no iPhone mention in 2007; the earliest is [p. N], 2009."). Skip the
+  answer block only for a pure single-fact lookup where the one committed finding already IS the
+  answer. Don't pad with "Coverage map:" scaffolding.
 
 RETRIEVAL PLAYBOOK
 1. Decompose the question into sub-aspects and likely sub-topics.
@@ -200,10 +214,13 @@ questions," scan for explicit question framings and unresolved threads.
 
 STYLE
 - Group findings by sub-topic and/or chronology. Prefer verbatim quotes and real charts over paraphrase.
-- Quote excerpts should be sentence-bounded and readable (1–3 sentences from content_text,
-  not a header fragment), with the phrase that actually answers the query wrapped in markdown
-  **bold**. find_mentions and enumerate already format their auto-committed excerpts this way;
-  when you compose your own add_to_report(kind="quote", ...) follow the same shape.
+- Quote excerpts should be wide and readable — a self-contained passage of 2–4 sentences from
+  content_text (NOT a one-line snippet or a header fragment; a snippet is a search artifact, the
+  reader wants enough surrounding context to understand the point), with the specific phrase that
+  answers the query wrapped in markdown **bold**. find_mentions and enumerate already format their
+  auto-committed excerpts this way; when you compose your own add_to_report(kind="quote", ...)
+  follow the same shape. If a committed excerpt is too thin to stand on its own, `get` that page
+  and widen it — use the chunk hit as a locator, then quote the readable passage around it.
 - When a chart matters, surface it (kind=chart) with the actual numbers in the caption.
 - Every line the reader sees carries a citation. Stop when you have enough evidence to answer
   the question at the chosen shape — do not keep widening just for completeness. TOPICAL queries
@@ -243,6 +260,13 @@ MAX_GRANULAR_DRILL = 100  # granular are sorted by page count, so this is the to
 MAX_TEXT_CHARS = 400
 MAX_ENUMERATE = 500  # safety ceiling on a single bulk enumeration (vs. the 10-cap on previews)
 DEFAULT_PRIMARY_K = 6  # top-N by query similarity marked "primary"; the rest "supporting"
+# find_mentions precision-by-volume. find_mentions does NOT rank, so it can't justify "primary" the
+# way enumerate (similarity-ranked) can. A distinctive entity ("iPhone", "Volcker rule") returns few
+# hits and those ARE the answer -> primary, shown in full. A common phrase ("watch for", "we don't
+# know", "remains to be seen") over-matches and would flood the report on a phrase-heavy analytical
+# query -> mark the whole batch "supporting" so the U3 UI tucks it behind the per-section disclosure
+# and the agent's curated findings + answer block stay the visible report. Threshold is per call.
+FIND_MENTIONS_PRIMARY_MAX = 12
 # Semantic relevance floor: the single knob that replaced the per-query regex filters. enumerate
 # unions pages by TOPIC MEMBERSHIP, but for a multi-aspect query that union over-recalls — a page
 # tagged "S&P 500" need not be about "profit margins". So we rank the union by cosine similarity to
@@ -466,8 +490,11 @@ def mention_snippet(text: str, patterns: list[re.Pattern[str]], limit: int = 420
 # aren't followed by whitespace+capital). Not perfect — but the excerpt is bounded to ±1 sentence
 # from an anchor, so over- or under-splitting at most widens or narrows by one fragment.
 _SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'\(\[])")
-EXCERPT_MAX_CHARS = 600
-EXCERPT_NEIGHBORS = 1  # sentences on each side of the anchor
+# Excerpt width: snippets are a search-granularity artifact; what the reader wants is a readable
+# passage. Default to a wide, multi-sentence window centered on the query-relevant anchor, with the
+# relevant clause bolded. The agent can still `get` a whole page when it needs more.
+EXCERPT_MAX_CHARS = 950
+EXCERPT_NEIGHBORS = 2  # sentences on each side of the anchor
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -756,11 +783,15 @@ async def find_mentions(args: dict) -> dict:
         label = ", ".join(terms[:4]) + (" ..." if len(terms) > 4 else "")
         await emit({"lane": "report", "kind": "heading", "text": f"Exact mentions: {label}"})
         src = "find_mentions:" + ",".join(terms[:3])
+        # Precision-by-volume: a distinctive entity returns few hits (those are the answer -> primary);
+        # a common phrase over-matches and would flood the report -> commit the batch as supporting so
+        # the UI tucks it behind the disclosure. See FIND_MENTIONS_PRIMARY_MAX.
+        relevance = "primary" if len(matches) <= FIND_MENTIONS_PRIMARY_MAX else "supporting"
         for m in matches:
             await emit({"lane": "report", "kind": "quote",
                         "page": m["page"], "issue_date": m.get("issue_date"),
                         "title": m.get("title"), "text": m["snippet"],
-                        "relevance": "primary", "src": src})
+                        "relevance": relevance, "src": src})
     await emit({"lane": "trace", "type": "tool_result", "name": "find_mentions",
                 "summary": f"{len(matches)} pages matched (mode={mode})" +
                            (": " + ", ".join(f"p.{m['page']}" for m in matches[:12]) if matches else "")})
@@ -943,7 +974,7 @@ async def enumerate_topics(args: dict) -> dict:
         if p.get("is_chart_bearing"):
             await emit({"lane": "report", "kind": "chart", "page": int(p["page"]),
                         "issue_date": p.get("issue_date"), "title": p.get("title"),
-                        "caption": snippet((p.get("card_text") or p.get("content_text") or ""), 160),
+                        "caption": snippet((p.get("card_text") or p.get("content_text") or ""), 260),
                         "relevance": relevance, "src": src})
         else:
             await emit({"lane": "report", "kind": "quote", "page": int(p["page"]),
@@ -1111,8 +1142,13 @@ def build_options(model: str | None = None) -> ClaudeAgentOptions:
         system_prompt=SYSTEM,
         mcp_servers={"eom": eom},
         allowed_tools=[f"mcp__eom__{t.name}" for t in TOOLS],
-        disallowed_tools=["Bash", "Read", "Write", "Edit", "Glob", "Grep",
-                          "WebSearch", "WebFetch", "NotebookEdit"],
+        # can_use_tool below is the real lockdown (it denies anything not mcp__eom__*). This list
+        # is the belt-and-suspenders: it removes built-ins from the OFFERED tool set so the model
+        # doesn't waste a turn calling one only to be denied. Keep it current with the CLI — 2.x
+        # added ToolSearch (observed being called + denied), plus Task/TodoWrite/plan/shell built-ins.
+        disallowed_tools=["Bash", "Read", "Write", "Edit", "MultiEdit", "Glob", "Grep",
+                          "WebSearch", "WebFetch", "NotebookEdit", "ToolSearch", "Task",
+                          "TodoWrite", "ExitPlanMode", "BashOutput", "KillShell", "SlashCommand"],
         can_use_tool=_only_eom,
         setting_sources=[],
     )
@@ -1175,9 +1211,13 @@ async def run_agent(prompt: str, model: str | None = None):
                         elif isinstance(block, ToolUseBlock):
                             await q.put({"lane": "trace", "type": "tool_call", "name": block.name, "args": block.input})
                     # Per-turn (LLM component) cost + latency. The SDK streams the SAME AssistantMessage
-                    # multiple times (one emission per content block group), each echoing the same
-                    # usage + message_id — so count/log a turn only ONCE per message_id, else cost and
-                    # turn count inflate (the duplicate rows were the source of the ~2x overestimate).
+                    # multiple times (one emission per content block group) with the same message_id, so
+                    # count a turn only ONCE per message_id. NOTE: the per-turn usage here is a
+                    # message_start SNAPSHOT — input/cache tokens are real, but output_tokens is a stub
+                    # (~1), because the model hasn't generated its output yet. The true output (and thus
+                    # the bulk of cost on answer-heavy turns) only lands in ResultMessage at the end. So
+                    # this running figure is a deliberate LOWER-BOUND estimate; we reconcile to the
+                    # authoritative ResultMessage.total_cost_usd on `done`. See cost-reconcile log below.
                     if msg.usage and (msg.message_id is None or msg.message_id not in counted_msg_ids):
                         if msg.message_id is not None:
                             counted_msg_ids.add(msg.message_id)
@@ -1204,11 +1244,27 @@ async def run_agent(prompt: str, model: str | None = None):
                         })
                         last_turn = now
                 elif isinstance(msg, ResultMessage):
-                    # ResultMessage.total_cost_usd is authoritative; fall back to our estimate.
+                    # ResultMessage is the authoritative end-of-run accounting. total_cost_usd is the
+                    # real billed cost (our running cost_total is only a lower-bound estimate — see the
+                    # note in the AssistantMessage branch). model_usage carries the real cumulative
+                    # token counts (incl. the output our live snapshots stubbed at ~1). Reconcile both.
                     final_cost = msg.total_cost_usd if msg.total_cost_usd is not None else cost_total
+                    total_tokens = authoritative_tokens(msg.model_usage)
+                    # Reconciliation log: estimate vs. authoritative. A large ratio is the signal that
+                    # the live figure diverged from the billed total (stubbed output under-counts; a
+                    # subscription/OAuth billing path can make the authoritative total lower instead).
+                    if msg.total_cost_usd is not None and msg.total_cost_usd > 0:
+                        ratio = cost_total / msg.total_cost_usd
+                        print(
+                            f"[cost-reconcile] estimate=${cost_total:.4f} "
+                            f"authoritative=${msg.total_cost_usd:.4f} ratio={ratio:.2f}x "
+                            f"turns={msg.num_turns} model_usage={msg.model_usage}",
+                            file=sys.stderr, flush=True,
+                        )
                     await q.put({
                         "lane": "trace", "type": "done", "is_error": msg.is_error,
                         "cost_total": round(final_cost, 6),
+                        "total_tokens": total_tokens,
                         "duration_ms": msg.duration_ms,
                         "num_turns": msg.num_turns,
                     })
@@ -1220,6 +1276,7 @@ async def run_agent(prompt: str, model: str | None = None):
     trace_seq = 0
     pending_call_ts: float | None = None
     report_seen = False
+    answer_seen = False
     ask_seen = False
     last_thought_text = ""
     try:
@@ -1241,17 +1298,29 @@ async def run_agent(prompt: str, model: str | None = None):
                     last_thought_text = str(ev["text"]).strip()
             elif ev.get("lane") == "report":
                 report_seen = True
+                if ev.get("kind") == "answer":
+                    answer_seen = True
             elif ev.get("lane") == "ask":
                 ask_seen = True
             ev.pop("_ts", None)
+            # Guarantee a pinned answer block on every successful run. The agent emits its own
+            # `answer` for TOPICAL coverage maps and for narrow yes/no / temporal / negative
+            # questions; if it finishes without one (e.g. it dumped quotes for a narrow query and
+            # left the verdict in its final trace thought), promote that last thought so the reader
+            # gets a direct answer at the top instead of a pile of findings to infer from.
+            # Guard: when findings WERE committed, only promote a thought that reads like an answer
+            # (cites a page, per the output contract) — otherwise a procedural sign-off ("now let me
+            # finalize…") would get pinned as the Answer. With no findings, the thought IS the answer
+            # (e.g. an uncited negative like "no mentions found"), so promote it regardless.
             if (
                 ev.get("type") == "done"
                 and not ev.get("is_error")
-                and not report_seen
+                and not answer_seen
                 and not ask_seen
                 and last_thought_text
+                and (not report_seen or "[p" in last_thought_text)
             ):
-                report_seen = True
+                answer_seen = True
                 yield {"lane": "report", "kind": "answer", "text": last_thought_text}
             yield ev
             if ev.get("type") == "done":
