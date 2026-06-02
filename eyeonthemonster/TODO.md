@@ -17,7 +17,8 @@ and judge output quality directly). A formal golden key is **optional** (owner d
   `claude-sonnet-4-6`). Don't swap the runtime to another provider.
 - **Env is pre-synced** (`uv sync` done). Use `uv run …`. UI (local): `uv run uvicorn server:app`
   (serves on `http://127.0.0.1:8000`).
-- **Deployed on Modal** (live as of 2026-05-31). `modal_app.py` packages the repo as an ASGI app
+- **Deployed on Modal** (live; last redeployed 2026-06-02 with the transient-drop resume fix —
+  see *Done 2026-06-02*). `modal_app.py` packages the repo as an ASGI app
   (`server:app`) under Modal app name **`eyeonthemonster`**; deploy/update with
   `uv run modal deploy modal_app.py` (or `uv run modal serve modal_app.py` for a hot-reload dev URL).
   - **Keys on Modal come from the Modal Secret `eyeonthemonster-secrets`, NOT `.env`** (`.env` is
@@ -44,13 +45,18 @@ and judge output quality directly). A formal golden key is **optional** (owner d
   (no API cost — raw topics in `page_topics_raw.jsonl` are cached) then
   `uv run python build_index.py`. Full rebuild ~3 min, dominated by the phrase linkage.
 
-## Current state (updated 2026-05-31) — pipeline COMPLETE + hardened + DEPLOYED
+## Current state (updated 2026-06-02) — pipeline COMPLETE + hardened + DEPLOYED
 
 > **For a fresh agent (incl. Codex):** the pipeline + product UI are built, hardened, gate-passed
-> (see *Done 2026-05-31*), committed, and deployed to Modal. The single open thrust is **latency /
-> cost on deep coverage queries** — start at *★ ACTIVE / NEXT SESSION*. Measure with
+> (see *Done 2026-05-31*), and deployed to Modal. The deployed app now **survives transient API
+> socket drops** by resuming the session (see *Done 2026-06-02*). The single open thrust is
+> **latency / cost on deep coverage queries** — start at *★ ACTIVE / NEXT SESSION*. Measure with
 > `uv run python eval_run.py "<query>"` (now prints a `run: $cost tokens=… turns=… sdk_wall=…s`
 > line). No owner-gated blocker remains; release is judged by testing + judgment, not a golden key.
+>
+> ⚠️ **Uncommitted:** `agent.py` (the resume fix), plus pre-existing edits to `BUILD_BRIEF.md`,
+> `eval_run.py`, `static/index.html`, are modified in the working tree and **deployed but not yet
+> committed**. Commit before relying on git state.
 
 
 - ✅ **W1 cards** — `build_cards.py` → `index/cards.jsonl`, ~2,300 chart-bearing pages.
@@ -205,6 +211,54 @@ found and fixed this session:
   surfaced on either analytical run over a chart-heavy corpus — worth a look (enumerate/chart_only on
   the curated synthesis, or the agent isn't reaching for charts on analytical shapes).
 
+### Done 2026-06-02 — transient API-drop resilience (deployed app no longer dies mid-run)
+
+- ✅ **Symptom (reported on the live Modal app).** A query died with
+  `API Error: The socket connection was closed unexpectedly … pass verbose: true … fetch()`,
+  *"Run ended with errors"* — it had run two successful tool turns (`find_mentions` + `search`)
+  then dropped on **turn 3** (the synthesis turn). User saw it as "first query worked, second
+  failed." (The `Unchecked runtime.lastError: Could not establish connection` console lines are
+  **Chrome-extension noise**, unrelated.)
+- ✅ **Diagnosis (confirmed against the installed SDK, not guessed).** That `fetch()` text is the
+  **Node Claude Code CLI's** HTTPS connection to `api.anthropic.com` dropping mid-stream — an
+  **upstream transient**, not an app-state bug. Specifically ruled out:
+  - The shared module-level `eom = create_sdk_mcp_server(...)` singleton is **NOT** the cause — the
+    in-process SDK MCP server is stateless (it routes JSON-RPC by hand in
+    `_internal/query.py::_handle_sdk_mcp_request`, holds no socket), so reusing it across queries is
+    safe. Each `run_agent` → `query()` spawns a fresh CLI subprocess + transport; nothing leaks
+    between query 1 and query 2.
+  - "First worked, second failed" was **coincidence** — the failing request was turn 3 *after* two
+    successful API round-trips, which rules out a stale-at-start connection.
+- ✅ **Fix — session-resume retry (`agent.py::run_agent`).** Chose resume over a fresh re-run so the
+  turns already streamed to the client are **not replayed** and the search tools are **not re-run**:
+  - `run_agent` captures the CLI `session_id` from the message stream; `drive()` was refactored into
+    a `consume()` helper (drives one `query()` attempt) + an attempt loop (`MAX_RUN_ATTEMPTS = 2`,
+    `RETRY_BACKOFF_S`).
+  - On a **transient** failure — whether raised (`CLIConnectionError`/`ProcessError`) **or** a clean
+    `ResultMessage(is_error)` carrying a transient marker / `api_error_status` — it resumes the SAME
+    session via `build_options(..., resume=session_id)` + a single-shot `_RESUME_NUDGE` string. The
+    model keeps its turn 1–2 tool results in context and finishes the interrupted turn, so the CLI
+    streams **only the continuation**. Non-transient errors fall straight through to fatal (no retry).
+  - `_is_transient(text, status)` classifies via `_TRANSIENT_MARKERS` (incl. the canonical
+    `socket connection was closed`, `overloaded`, ECONNRESET/ETIMEDOUT, 5xx text) and
+    `_TRANSIENT_STATUSES` ({408, 425, 429, 500, 502, 503, 504, 529}).
+  - Emits a visible `⟳ Transient API drop — resuming run (attempt 2/2)` **trace `notice`** (renders
+    via the frontend's unknown-trace-type fall-through). `done` is emitted **exactly once** across
+    all paths (ok / give-up-after-N / fatal). Give-up shows
+    `Transient API error, gave up after N attempt(s): …` instead of a raw socket error.
+  - **Report-lane dedup** in the consumer loop (insurance): a resumed attempt that somehow re-commits
+    a finding is dropped, keyed on `(kind, page, text/caption)`; the single `answer` is exempt.
+- ⚠️ **Known caveat — cost display undercounts on the retry path only.** A resumed
+  `ResultMessage.total_cost_usd` covers just the continuation, and the failed attempt produced no
+  authoritative total. Left the deliberate cost-reconcile semantics untouched (a `max()` guard would
+  break the intentional low-cost OAuth/subscription case noted in the `[cost-reconcile]` block).
+  Rare path, cosmetic only. The live cross-attempt `cost_total` estimate *does* accumulate both.
+- ✅ **Resume relies on the CLI's on-disk session transcript**, which is present in the same Modal
+  container/request since the retry runs immediately in the same handler. Verified: syntax, import,
+  `build_options(resume=…)` wiring, and `_is_transient` (`socket`→T, `529`→T, `400 tool-denial`→F).
+  **Not yet verified against a real injected drop** — next agent could force one to confirm the
+  resume actually re-streams only the continuation (see *★ ACTIVE* note).
+
 ### Open observations from 2026-05-30 stress test (not yet acted on)
 
 Five Cembalest-voice queries through the live UI exposed these still-open issues:
@@ -285,6 +339,12 @@ become stale. Current state:
    text-only baseline in `baseline/golden_results.md`. No formal scored recall required to ship.
 4. (Optional, NOT a gate) If a recall number is later wanted, hand-build a golden key for one query
    with the owner and score via `eval_run.py --golden`.
+5. **Verify the 2026-06-02 resume fix against a real drop (loose end).** The logic is unit-checked
+   but not exercised end-to-end. To force a transient: temporarily raise
+   `CLIConnectionError("socket connection was closed unexpectedly")` once inside `consume()` after
+   the first tool turn, run `eval_run.py "<any query>"`, and confirm you see the `⟳ … resuming`
+   notice, that turns 1–2 are NOT re-streamed, and that exactly one `done` arrives. Remove the
+   injection after.
 
 ## PRODUCT VISION — the two-panel report UI (U-series)
 
@@ -425,6 +485,12 @@ These were deliberate and hard-won; a fresh agent may be tempted to "simplify" t
 - **The two-lane event contract** (`lane:"report"` kinds vs `lane:"trace"` types) is the seam
   between agent and UI. The U-series extends it (`relevance`, `kind:"answer"`, trace `id`) — extend,
   don't rename.
+- **Transient-drop retry uses session RESUME, not a fresh re-run** (`agent.py::run_agent`, *Done
+  2026-06-02*). The single-attempt loop + `_RESUME_NUDGE` are deliberate: resuming the captured
+  `session_id` keeps the model's prior tool results in context so it finishes the interrupted turn
+  without replaying turns or re-running search tools. Don't "simplify" to a naive restart — that
+  re-streams already-shown findings. Keep `done` emitted exactly once across every path, and only
+  retry errors that pass `_is_transient` (don't blanket-retry tool/model errors).
 
 ## Project context
 

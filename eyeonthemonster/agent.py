@@ -15,6 +15,8 @@ import numpy as np
 from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
+    CLIConnectionError,
+    ProcessError,
     ResultMessage,
     TextBlock,
     ToolUseBlock,
@@ -117,7 +119,7 @@ When the shape is ambiguous, default to TOPICAL — coverage maps degrade more g
 narrow answers do. The cost of over-investigating a narrow question is real (latency + tokens) —
 don't keep widening just for completeness when the answer is already in hand.
 
-TOOL SURFACE (6 tools)
+TOOL SURFACE (7 tools)
 - find_mentions(terms, [date_range], [mode]): exact regex over page text + chart cards. Default
   UNION across terms — a page matches if any term hits. Pass mode="all" only when you truly need
   every term on the same page. AUTO-COMMITS matched pages as quote findings. Use FIRST for named
@@ -134,9 +136,12 @@ TOOL SURFACE (6 tools)
 - ask_user(question, why): pause the run with ONE terse clarifying question. High bar — only call
   when concrete evidence (numbers, not vibes) says clarification would materially change retrieval.
   See CLARIFICATION below. After calling, STOP.
-- add_to_report(kind, ...): manual commits. Kinds: heading {text}; narrative {text}; answer {text}
-  (the final coverage map — call this exactly ONCE at the very end); quote {text, page, issue_date,
-  title, relevance, src}; chart {page, caption, relevance, src}.
+- add_report_items(items): manual commits. Use this for synthesis sections, curated analytical
+  findings, isolated late additions, and the final answer. Item kinds: heading {text}; narrative
+  {text}; answer {text} (the final coverage map — emit exactly ONCE at the very end); quote
+  {text, page, issue_date, title, relevance, src}; chart {page, caption, relevance, src}. Put
+  representative inline [p. N] / [pp. N-M] citations in the answer item; do not keep searching just
+  to add more citations once the evidence is in hand.
 
 CLARIFICATION — use sparingly
 Default is to proceed without asking. The user dislikes pointless back-and-forth. Only call
@@ -158,7 +163,9 @@ and re-runs.
 OUTPUT CONTRACT
 - Every claim carries a page citation: [p. N] for one page, [pp. N-M] for a span.
 - The report IS the accumulation of report-lane events. find_mentions and enumerate auto-commit
-  their findings — do NOT loop add_to_report to re-add them.
+  their findings — do NOT use add_report_items to re-add them.
+- Manual synthesis must be batched: call add_report_items once with the ordered item list rather
+  than spending one tool turn per heading/quote/narrative.
 - relevance (quote/chart): "primary" for findings that DIRECTLY answer the question, "supporting"
   for context. Default supporting; reserve primary for the strongest evidence.
 - src = a short note on what surfaced it (e.g. "search:'LCOE'" or "find_mentions:china") so the
@@ -168,9 +175,11 @@ OUTPUT CONTRACT
   content_text is what the author wrote; card_text is an AI vision summary of the charts. Quoting
   card_text paraphrases in quotation marks fabricates author wording and will be rejected. Either
   copy verbatim from content_text, or drop the quotes and present as paraphrase.
-- ANSWER BLOCK depends on shape. TOPICAL queries: FINISH by calling add_to_report(kind="answer",
-  text=...) exactly once with a compact author-facing coverage map (4–6 bullets / short
-  paragraphs; coverage areas, chronology, primary cited pages). Chronology labels must be
+- ANSWER BLOCK depends on shape. TOPICAL and ANALYTICAL queries: FINISH by calling add_report_items
+  with exactly one answer item containing a compact author-facing coverage map (4–6 bullets / short
+  paragraphs; coverage areas, chronology, primary cited pages). The answer item itself should cite
+  representative primary pages inline; do not run extra searches only to make the answer more
+  citation-dense. Chronology labels must be
   coherent date ranges ("2014–2026", never reversed). NARROW / FACTUAL queries: ALWAYS finish
   with a one- or two-sentence answer block when the question is yes/no, temporal ("in 2007"),
   superlative ("earliest", "highest"), or negative — the reader needs the direct verdict, not a
@@ -202,7 +211,7 @@ against "Argentina peso default" and get committed. Use partial stems so morphol
 "Kremlin"] for a Putin query). Find_mentions does NOT need this — it already filters lexically.
 4. WIDEN with `search` using several reformulations — vocabulary drifts across 20 years ("solar
    cost" 2005 vs "module ASP / LCOE" 2025). Use chart_only=true when the question is about what
-   was *shown*. Add genuinely missing widening hits via add_to_report (small handful at most — if
+   was *shown*. Add genuinely missing widening hits via add_report_items (small handful at most — if
    widening turns up many candidates, summarize them in the final answer rather than dumping each).
 5. READ context with `get` (single page, range, or whole issue) only when you need to verify a
    cross-reference or pull more text — don't loop `get` over pages already summarized by enumerate.
@@ -210,7 +219,9 @@ against "Argentina peso default" and get committed. Use partial stems so morphol
 ANALYTICAL QUESTIONS ("what did I get wrong", "what open questions did I pose")
 Not findable by similarity alone. Decompose: for "got wrong," gather the author's predictions on a
 topic, then find later issues whose events contradict them, and cite both sides. For "open
-questions," scan for explicit question framings and unresolved threads.
+questions," scan for explicit question framings and unresolved threads. Once the evidence is in
+hand, commit the curated analytical synthesis with one add_report_items call (headings,
+narratives, selected quotes/charts, final answer). Do not spend a separate tool turn per finding.
 
 STYLE
 - Group findings by sub-topic and/or chronology. Prefer verbatim quotes and real charts over paraphrase.
@@ -218,7 +229,7 @@ STYLE
   content_text (NOT a one-line snippet or a header fragment; a snippet is a search artifact, the
   reader wants enough surrounding context to understand the point), with the specific phrase that
   answers the query wrapped in markdown **bold**. find_mentions and enumerate already format their
-  auto-committed excerpts this way; when you compose your own add_to_report(kind="quote", ...)
+  auto-committed excerpts this way; when you compose your own quote item for add_report_items,
   follow the same shape. If a committed excerpt is too thin to stand on its own, `get` that page
   and widen it — use the chunk hit as a locator, then quote the readable passage around it.
 - When a chart matters, surface it (kind=chart) with the actual numbers in the caption.
@@ -876,7 +887,7 @@ async def list_topics(args: dict) -> dict:
 @tool(
     "enumerate",
     "RECALL BACKBONE for \"everything about X\": given one or more granular topic_ids, commit the "
-    "tagged pages to the report in a SINGLE call -- no per-page get_page/add_to_report needed. Unions "
+    "tagged pages to the report in a SINGLE call -- no per-page get/add_report_items needed. Unions "
     "the topics, dedups by page, ranks by similarity to your FULL query q, and emits each on-topic "
     "page as a chart (if chart-bearing) or quote (top results -> relevance=primary, rest supporting). "
     "Pages that are tagged but score below the relevance floor for q are kept in the coverage count "
@@ -1082,7 +1093,17 @@ async def ask_user(args: dict) -> dict:
     {"kind": str, "text": str, "page": int, "issue_date": str, "title": str, "caption": str, "relevance": str, "src": str},
 )
 async def add_to_report(args: dict) -> dict:
-    args = dict(args)
+    normalized, error = normalize_report_item(args)
+    if error:
+        await emit({"lane": "trace", "type": "tool_result", "name": "add_to_report",
+                    "summary": error["summary"]})
+        return {"content": [{"type": "text", "text": json.dumps(error["payload"])}]}
+    await emit({"lane": "report", **normalized})
+    return {"content": [{"type": "text", "text": "added"}]}
+
+
+def normalize_report_item(raw: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    args = dict(raw)
     if args.get("kind") not in {"quote", "chart", "heading", "narrative", "answer"}:
         args["kind"] = "narrative"
     if args["kind"] in {"quote", "chart"} and args.get("relevance") not in {"primary", "supporting"}:
@@ -1091,24 +1112,53 @@ async def add_to_report(args: dict) -> dict:
         page = _load()["page_by_num"].get(int(args["page"]))
         bad = unverified_quoted_spans(str(args.get("text") or ""), page)
         if bad:
-            await emit({"lane": "trace", "type": "tool_result", "name": "add_to_report",
-                        "summary": f"rejected p.{args['page']} quote: quoted span not verbatim in "
-                                   f"content_text ({bad[0][:60]!r})"})
-            return {"content": [{"type": "text", "text": json.dumps({
-                "rejected": True,
-                "reason": "A quoted span you wrapped in quotation marks does not appear verbatim in "
-                          "this page's content_text. Quotation marks must enclose the author's actual "
-                          "words copied from content_text — never the AI chart/vision summary "
-                          "(card_text) or a paraphrase. Either copy the exact words from content_text, "
-                          "or drop the quotation marks and present it as paraphrase.",
-                "page": int(args["page"]),
-                "unverified_spans": bad,
-            })}]}
+            return {}, {
+                "summary": f"rejected p.{args['page']} quote: quoted span not verbatim in "
+                           f"content_text ({bad[0][:60]!r})",
+                "payload": {
+                    "rejected": True,
+                    "reason": "A quoted span you wrapped in quotation marks does not appear verbatim in "
+                              "this page's content_text. Quotation marks must enclose the author's actual "
+                              "words copied from content_text — never the AI chart/vision summary "
+                              "(card_text) or a paraphrase. Either copy the exact words from content_text, "
+                              "or drop the quotation marks and present it as paraphrase.",
+                    "page": int(args["page"]),
+                    "unverified_spans": bad,
+                },
+            }
     if args["kind"] in {"heading", "narrative", "answer"}:
         for key in ("page", "issue_date", "title", "caption", "relevance", "src"):
             args.pop(key, None)
-    await emit({"lane": "report", **{k: v for k, v in args.items() if v is not None}})
-    return {"content": [{"type": "text", "text": "added"}]}
+    return {k: v for k, v in args.items() if v is not None}, None
+
+
+@tool(
+    "add_report_items",
+    "Commit one or more report items in a single tool call. Use this for all manual report commits, "
+    "especially synthesis sections or several curated findings. Each item has kind in "
+    "heading/narrative/answer/quote/chart; quote/chart may include "
+    "page, issue_date, title, relevance, src; chart uses caption; quote/narrative/answer/heading use text.",
+    {"items": list},
+)
+async def add_report_items(args: dict) -> dict:
+    raw_items = args.get("items") or []
+    if not isinstance(raw_items, list):
+        raw_items = []
+    added = 0
+    rejected: list[dict[str, Any]] = []
+    for i, raw in enumerate(raw_items):
+        if not isinstance(raw, dict):
+            rejected.append({"index": i, "reason": "item is not an object"})
+            continue
+        normalized, error = normalize_report_item(raw)
+        if error:
+            rejected.append({"index": i, **error["payload"]})
+            continue
+        await emit({"lane": "report", **normalized})
+        added += 1
+    summary = f"added {added} report item(s)" + (f", rejected {len(rejected)}" if rejected else "")
+    await emit({"lane": "trace", "type": "tool_result", "name": "add_report_items", "summary": summary})
+    return {"content": [{"type": "text", "text": json.dumps({"added": added, "rejected": rejected})}]}
 
 
 TOOLS = [
@@ -1118,7 +1168,7 @@ TOOLS = [
     enumerate_topics,
     get,
     ask_user,
-    add_to_report,
+    add_report_items,
 ]
 
 eom = create_sdk_mcp_server(name="eom", version="1.0.0", tools=TOOLS)
@@ -1134,11 +1184,14 @@ async def _only_eom(tool_name: str, input_data: dict, context):
     return PermissionResultDeny(message="Use only the eom search tools.", interrupt=False)
 
 
-def build_options(model: str | None = None) -> ClaudeAgentOptions:
+def build_options(model: str | None = None, resume: str | None = None) -> ClaudeAgentOptions:
     # ClaudeAgentOptions is per-call so the UI can select the model at run time. Everything else
     # (system prompt, tool surface, lockdown) is invariant across model choice.
+    # `resume` is set only on a post-failure retry: it continues an existing CLI session (the
+    # model keeps the tool results from the turns that already succeeded) instead of starting over.
     return ClaudeAgentOptions(
         model=resolve_model(model),
+        resume=resume,
         system_prompt=SYSTEM,
         mcp_servers={"eom": eom},
         allowed_tools=[f"mcp__eom__{t.name}" for t in TOOLS],
@@ -1180,10 +1233,46 @@ User query, verbatim:
 
 Task:
 Enumerate the relevant coverage. Use enumerate as the topical recall backbone; widen with `search`
-for vocabulary drift; commit narrative connective tissue and any genuinely missing widening hits
-via add_to_report. Don't re-add enumerate's auto-committed findings. Don't `get` pages already
-summarized in enumerate.primary_pages unless you need to verify a quote or follow a cross-ref.
-Finish with add_to_report(kind="answer", text=<compact coverage map>) — exactly once."""
+for vocabulary drift; commit narrative connective tissue and any genuinely missing widening hits.
+Use add_report_items for all manual report commits, batching the ordered findings and final answer
+instead of spending one tool turn per item. Don't re-add enumerate's auto-committed findings. Don't
+`get` pages already summarized in enumerate.primary_pages unless you need to verify a quote or
+follow a cross-ref. Finish with exactly one answer item."""
+
+
+# Transient = the upstream API/connection dropped (vs. a real model/tool error). These surface
+# both as raised CLIConnectionError/ProcessError (CLI exited non-zero printing "API Error: ...")
+# and as a clean ResultMessage(is_error) carrying the same text / an api_error_status. The canonical
+# one we hit is the Node CLI's "socket connection was closed unexpectedly"; overloaded_error (529)
+# and the 5xx family are the other recoverables. We retry these; everything else is fatal.
+_TRANSIENT_MARKERS = (
+    "socket connection was closed",
+    "fetch failed",
+    "econnreset", "etimedout", "epipe", "enotfound", "eai_again",
+    "connection error", "connection reset", "connection closed",
+    "terminated", "network error", "service unavailable", "bad gateway",
+    "gateway timeout", "internal server error", "overloaded",
+)
+_TRANSIENT_STATUSES = {408, 425, 429, 500, 502, 503, 504, 529}
+MAX_RUN_ATTEMPTS = 2  # one original + one resume; a transient drop is almost always gone by retry 2
+RETRY_BACKOFF_S = 1.5
+
+# Resume nudge: the first attempt ran via streaming-input with the full _agent_user_message; the
+# retry is a single-shot string on the SAME resumed session, so the model still sees every tool
+# result from before. Tell it to finish, not restart, so it doesn't re-run the search tools.
+_RESUME_NUDGE = (
+    "The previous turn was cut off by a transient API connection drop before you finished. "
+    "Continue exactly where you left off using the search results already in your context — do "
+    "NOT repeat tool calls you have already run. Commit any remaining findings and finish with "
+    "exactly one answer item."
+)
+
+
+def _is_transient(text: object, status: object = None) -> bool:
+    if isinstance(status, int) and status in _TRANSIENT_STATUSES:
+        return True
+    t = str(text or "").lower()
+    return any(marker in t for marker in _TRANSIENT_MARKERS)
 
 
 async def run_agent(prompt: str, model: str | None = None):
@@ -1199,11 +1288,18 @@ async def run_agent(prompt: str, model: str | None = None):
         nonlocal cost_total
         last_turn = time.perf_counter()
         counted_msg_ids: set[str] = set()  # dedupe repeated AssistantMessage streams by message_id
-        try:
-            async def prompts():
-                yield {"type": "user", "message": {"role": "user", "content": _agent_user_message(prompt)}}
+        session_id: str | None = None      # captured so a transient drop can resume the SAME session
+        done_payload: dict[str, Any] | None = None  # final accounting; emitted once, after the last attempt
 
-            async for msg in query(prompt=prompts(), options=run_options):
+        async def consume(prompt_arg, opts) -> tuple[str, str]:
+            # Drive ONE query() attempt. Returns (status, detail) where status is "ok" (clean
+            # ResultMessage, success or non-transient error — done_payload is stashed) or "transient"
+            # (recoverable drop — caller may resume). Raises on a fatal/non-transient exception.
+            nonlocal cost_total, last_turn, session_id, done_payload
+            async for msg in query(prompt=prompt_arg, options=opts):
+                sid = getattr(msg, "session_id", None)
+                if sid:
+                    session_id = sid  # any message carries it; last one wins (stable within a session)
                 if isinstance(msg, AssistantMessage):
                     for block in msg.content:
                         if isinstance(block, TextBlock):
@@ -1244,6 +1340,13 @@ async def run_agent(prompt: str, model: str | None = None):
                         })
                         last_turn = now
                 elif isinstance(msg, ResultMessage):
+                    # A clean ResultMessage can still report a transient API failure (the CLI caught it
+                    # instead of crashing). Detect that BEFORE finalizing so the caller can resume.
+                    if msg.is_error and _is_transient(
+                        msg.result or " ".join(str(e) for e in (msg.errors or [])),
+                        msg.api_error_status,
+                    ):
+                        return "transient", str(msg.result or msg.api_error_status or "transient API error")
                     # ResultMessage is the authoritative end-of-run accounting. total_cost_usd is the
                     # real billed cost (our running cost_total is only a lower-bound estimate — see the
                     # note in the AssistantMessage branch). model_usage carries the real cumulative
@@ -1261,13 +1364,60 @@ async def run_agent(prompt: str, model: str | None = None):
                             f"turns={msg.num_turns} model_usage={msg.model_usage}",
                             file=sys.stderr, flush=True,
                         )
-                    await q.put({
+                    done_payload = {
                         "lane": "trace", "type": "done", "is_error": msg.is_error,
                         "cost_total": round(final_cost, 6),
                         "total_tokens": total_tokens,
                         "duration_ms": msg.duration_ms,
                         "num_turns": msg.num_turns,
+                        "subtype": msg.subtype,
+                        "stop_reason": msg.stop_reason,
+                        "result": msg.result,
+                        "errors": msg.errors,
+                        "api_error_status": msg.api_error_status,
+                    }
+                    return "ok", ""
+            return "ok", ""  # stream ended without a ResultMessage — treat as a clean (empty) finish
+
+        async def prompts():
+            yield {"type": "user", "message": {"role": "user", "content": _agent_user_message(prompt)}}
+
+        try:
+            for attempt in range(1, MAX_RUN_ATTEMPTS + 1):
+                if attempt == 1:
+                    prompt_arg, opts = prompts(), run_options
+                else:
+                    # Resume the captured session with a single-shot nudge: the model still has every
+                    # prior tool result in context, so it finishes the interrupted turn rather than
+                    # re-running the search tools (whose findings were already streamed to the client).
+                    prompt_arg = _RESUME_NUDGE
+                    opts = build_options(selected_model, resume=session_id)
+                try:
+                    status, detail = await consume(prompt_arg, opts)
+                except (CLIConnectionError, ProcessError) as exc:
+                    if not _is_transient(exc):
+                        raise  # fatal — let the outer handler emit error + done
+                    status, detail = "transient", str(exc)
+
+                if status == "ok":
+                    # Always emit exactly one done so the consumer loop terminates; synthesize a
+                    # minimal one if the stream ended without a ResultMessage.
+                    await q.put(done_payload or {
+                        "lane": "trace", "type": "done", "is_error": False,
+                        "cost_total": round(cost_total, 6),
                     })
+                    return
+
+                # status == "transient": resume if we have a session left and attempts to spare.
+                if attempt >= MAX_RUN_ATTEMPTS or not session_id:
+                    await q.put({"lane": "trace", "type": "error",
+                                 "text": f"Transient API error, gave up after {attempt} attempt(s): {detail}"})
+                    await q.put({"lane": "trace", "type": "done", "is_error": True,
+                                 "cost_total": round(cost_total, 6)})
+                    return
+                await q.put({"lane": "trace", "type": "notice",
+                             "text": f"⟳ Transient API drop — resuming run (attempt {attempt + 1}/{MAX_RUN_ATTEMPTS})"})
+                await asyncio.sleep(RETRY_BACKOFF_S * attempt)
         except Exception as exc:  # noqa: BLE001
             await q.put({"lane": "trace", "type": "error", "text": str(exc)})
             await q.put({"lane": "trace", "type": "done", "is_error": True, "cost_total": round(cost_total, 6)})
@@ -1279,6 +1429,7 @@ async def run_agent(prompt: str, model: str | None = None):
     answer_seen = False
     ask_seen = False
     last_thought_text = ""
+    seen_report_keys: set[str] = set()  # drop findings re-emitted by a resumed attempt (U4 insurance)
     try:
         while True:
             ev = await q.get()
@@ -1297,6 +1448,18 @@ async def run_agent(prompt: str, model: str | None = None):
                 if ev.get("type") == "thought" and str(ev.get("text") or "").strip():
                     last_thought_text = str(ev["text"]).strip()
             elif ev.get("lane") == "report":
+                # A resume shouldn't re-run the search tools, but guard anyway: if a retried attempt
+                # re-commits a finding we already streamed, drop the duplicate. Keyed on identity
+                # (kind + page + text/caption); the single answer is exempt — a retry's answer is the
+                # first one the client sees, so it must pass through.
+                if ev.get("kind") != "answer":
+                    key = json.dumps(
+                        [ev.get("kind"), ev.get("page"), (ev.get("text") or ev.get("caption") or "")[:160]],
+                        ensure_ascii=False,
+                    )
+                    if key in seen_report_keys:
+                        continue
+                    seen_report_keys.add(key)
                 report_seen = True
                 if ev.get("kind") == "answer":
                     answer_seen = True
