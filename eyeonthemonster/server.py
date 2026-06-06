@@ -139,7 +139,13 @@ def page_image(n: int, dpi: int = 130) -> Response:
     # dpi is the viewer's zoom control; clamp so a stray value can't ask for a giant render.
     dpi = max(72, min(int(dpi), 220))
     png, _, _ = _render_page(n, dpi)
-    return Response(png, media_type="image/png")
+    # Page renders never change — let the browser cache them so paging back/forth and re-opening
+    # citations is instant and doesn't re-acquire the render lock.
+    return Response(
+        png,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 @app.get("/page_section/{n}")

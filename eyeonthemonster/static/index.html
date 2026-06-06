@@ -578,6 +578,29 @@
     transition: opacity .12s ease;
   }
   #viewer-img.loading { opacity: .35; }
+  /* Loading indicator — a blank render area otherwise reads as a broken page. */
+  #viewer-spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    color: #c3ccd2;
+    font-size: 13px;
+    pointer-events: none;
+  }
+  #viewer-spinner[hidden] { display: none; }
+  #viewer-spinner .spin {
+    width: 22px;
+    height: 22px;
+    border: 3px solid rgba(255,255,255,.22);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: vspin .8s linear infinite;
+  }
+  @keyframes vspin { to { transform: rotate(360deg); } }
   @media (max-width: 820px) {
     #recents-menu { min-width: 78vw; right: -1rem; }
   }
@@ -638,6 +661,7 @@
   </div>
   <div id="viewer-scroll">
     <img id="viewer-img" alt="">
+    <div id="viewer-spinner" hidden><span class="spin"></span><span>Rendering page&hellip;</span></div>
     <div id="viewer-error" hidden>
       <p>This page didn&rsquo;t render.</p>
       <button id="v-retry" type="button">Retry</button>
@@ -1285,11 +1309,42 @@ function newSearch() {
   $('q').focus();
 }
 
-// ---- Clickable [p. N] / [pp. N-M] citations -> page viewer ----
-const CITE_RE = /\[pp?\.\s*(\d+)(?:\s*[-–—]\s*(\d+))?\]/g;
+// ---- Clickable [p. N] / [pp. N-M] / [pp. N, M, K-L] citations -> page viewer ----
+// The outer match grabs a whole citation INCLUDING comma-separated lists and ranges, so multi-page
+// citations like [pp. 337, 385, 906] linkify every page — not just the simple [p. N] / [pp. N-M]
+// forms (the earlier regex stopped at the first page, leaving list citations as dead plain text).
+const CITE_RE = /\[(pp?)\.\s*(\d[\d\s,–—-]*)\]/g;
+// Each individual page token inside a citation: a single page or a hyphenated range.
+const PAGE_TOKEN_RE = /\d+(?:\s*[-–—]\s*\d+)?/g;
+
+function pagerefSpan(token) {
+  const pageNum = Number(token.match(/\d+/)[0]);  // a range opens at its start page
+  const span = document.createElement('span');
+  span.className = 'pageref';
+  span.textContent = token;
+  span.dataset.page = String(pageNum);
+  span.title = 'Open p. ' + pageNum + ' and its section in the monster PDF';
+  span.onclick = () => openPage(pageNum);
+  return span;
+}
+
+function appendCitation(frag, prefix, inner) {
+  // Rebuild "[pp. <pages>]" with every page number / range as its own clickable pageref, keeping the
+  // commas and brackets as plain text in between.
+  frag.appendChild(document.createTextNode('[' + prefix + '. '));
+  let last = 0, t;
+  PAGE_TOKEN_RE.lastIndex = 0;
+  while ((t = PAGE_TOKEN_RE.exec(inner))) {
+    if (t.index > last) frag.appendChild(document.createTextNode(inner.slice(last, t.index)));
+    frag.appendChild(pagerefSpan(t[0]));
+    last = t.index + t[0].length;
+  }
+  if (last < inner.length) frag.appendChild(document.createTextNode(inner.slice(last)));
+  frag.appendChild(document.createTextNode(']'));
+}
 
 function linkifyCitations(root) {
-  // Walk text nodes and replace [p. N] / [pp. N-M] with a clickable pageref. Skip anything already
+  // Walk text nodes and replace citations with clickable pagerefs. Skip anything already
   // interactive (buttons, links, existing pagerefs) so we don't double-wrap.
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
@@ -1309,14 +1364,7 @@ function linkifyCitations(root) {
     CITE_RE.lastIndex = 0;
     while ((m = CITE_RE.exec(text))) {
       if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
-      const pageNum = Number(m[1]);  // capture per-iteration: `m` is reused and is null after the loop
-      const span = document.createElement('span');
-      span.className = 'pageref';
-      span.textContent = m[0];
-      span.dataset.page = String(pageNum);
-      span.title = 'Open p. ' + pageNum + ' and its section in the monster PDF';
-      span.onclick = () => openPage(pageNum);
-      frag.appendChild(span);
+      appendCitation(frag, m[1], m[2]);  // m[1] = "p"/"pp", m[2] = the page list/range body
       last = m.index + m[0].length;
     }
     if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
@@ -1360,14 +1408,16 @@ function loadPageImage(n) {
   const dpi = viewerZoom ? 200 : 130;
   imgAttempt = 0;
   $('viewer-error').hidden = true;
+  $('viewer-spinner').hidden = false;
   img.classList.add('loading');
   const attempt = () => {
     img.src = `/page_image/${n}?dpi=${dpi}` + (imgAttempt ? `&r=${imgAttempt}` : '');
   };
-  img.onload = () => { img.classList.remove('loading'); $('viewer-error').hidden = true; };
+  img.onload = () => { img.classList.remove('loading'); $('viewer-spinner').hidden = true; $('viewer-error').hidden = true; };
   img.onerror = () => {
     if (imgAttempt < 1) { imgAttempt++; attempt(); return; }
     img.classList.remove('loading');
+    $('viewer-spinner').hidden = true;
     img.removeAttribute('src');
     $('viewer-error').hidden = false;
   };
