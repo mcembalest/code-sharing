@@ -658,7 +658,7 @@
   .ht-step p { margin: .2rem 0; }
   .ht-artifact { display: inline-block; margin-top: .35rem; font-size: 11.5px; color: var(--muted); background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: .12rem .45rem; font-family: ui-monospace, Menlo, monospace; }
 
-  /* definition callouts (embeddings / BM25 etc.) */
+  /* definition callouts (the two search methods) */
   .ht-defs { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; margin-top: .8rem; }
   .ht-def { border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 5px; padding: .6rem .8rem; background: #fff; }
   .ht-def b { font-size: 13px; color: var(--ink); }
@@ -736,23 +736,6 @@
     <div class="ht-scroll">
 
       <section>
-        <div class="ht-kicker">Overview</div>
-        <h2>A cited research tool over the Eye on the Market archive</h2>
-        <p class="ht-lead">This application answers questions about the full archive of J.P. Morgan's
-          <i>Eye on the Market</i> by Michael Cembalest. Instead of returning a list of links, an AI agent
-          searches the archive, gathers the relevant passages and charts, and writes an answer in which
-          <b>every statement is tied to the exact source page</b>. The sections below document the data, how
-          it was indexed, and how a question is answered &mdash; so the output can be audited, not just trusted.</p>
-        <div class="ht-stats">
-          <div class="ht-stat"><b>~20 yrs</b><span>of publications</span></div>
-          <div class="ht-stat"><b>5,117</b><span>pages</span></div>
-          <div class="ht-stat"><b>632</b><span>issues (letters)</span></div>
-          <div class="ht-stat"><b>2,300</b><span>charts described</span></div>
-          <div class="ht-stat"><b>4,882</b><span>pages indexed</span></div>
-        </div>
-      </section>
-
-      <section>
         <div class="ht-kicker">The data</div>
         <h2>What the system has access to</h2>
         <p>The source is a single 233&nbsp;MB PDF: roughly 20 years of the publication, 5,117 pages. The
@@ -801,11 +784,10 @@
             <p>Each page's combined text (prose&nbsp;+&nbsp;chart description&nbsp;+&nbsp;topics) is turned
               into two complementary search structures:</p>
             <div class="ht-defs">
-              <div class="ht-def"><b>Keyword index (BM25)</b><p>Matches exact words and phrases &mdash; precise
-                for names, tickers, and specific terminology.</p></div>
-              <div class="ht-def"><b>Embeddings</b><p>Each page is converted into a vector of numbers that
-                represents its meaning. Pages about similar ideas sit close together, so a query can match a
-                page even when it uses different words.</p></div>
+              <div class="ht-def"><b>Keyword search</b><p>Matches exact words and phrases &mdash; precise for
+                names, tickers, and specific terminology.</p></div>
+              <div class="ht-def"><b>Meaning-based search</b><p>Captures what each page is about, so a question
+                matches the relevant pages even when they use different words than the question does.</p></div>
             </div>
           </div></div>
         </div>
@@ -871,9 +853,9 @@
             <div class="mk-line"></div><div class="mk-line short"></div>
           </div>
         </div>
-        <p class="ht-foot">Models &mdash; chart reading: Google Gemini Flash &middot; retrieval: static
-          embeddings&nbsp;+&nbsp;BM25 keyword search &middot; agent: Claude (selectable: Haiku, Sonnet, Opus).
-          Every claim shown to you carries a page citation by design.</p>
+        <p class="ht-foot">Models &mdash; chart reading: Google Gemini Flash &middot; retrieval: combined
+          keyword and meaning-based search &middot; agent: Claude (selectable: Haiku, Sonnet, Opus). Every
+          claim shown to you carries a page citation by design.</p>
       </section>
 
     </div>
