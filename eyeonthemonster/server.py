@@ -4,6 +4,7 @@ import json
 import os
 import re
 import secrets as _secrets
+import threading
 from io import BytesIO
 from pathlib import Path
 
@@ -16,7 +17,57 @@ from agent import run_agent
 
 
 ROOT = Path(__file__).resolve().parent
-PDF = fitz.open(ROOT / "Eye on the Monster.pdf")
+PDF_PATH = ROOT / "Eye on the Monster.pdf"
+PDF = fitz.open(PDF_PATH)
+# PyMuPDF documents are NOT thread-safe, and FastAPI runs sync endpoints (page_image, export_pdf's
+# figure render) in an anyio threadpool. Two users rendering pages at once would hit the shared
+# document concurrently and corrupt the render — the "PDF occasionally fails to render" bug. Serialize
+# every page access through one lock so only one render touches the document at a time.
+_PDF_LOCK = threading.Lock()
+
+
+def _render_page(page_num: int, dpi: int) -> tuple[bytes, int, int]:
+    """Render a 1-based monster-PDF page under the document lock; returns (png_bytes, width, height).
+
+    On the rare chance the shared handle has been left in a bad state, reopen the document once and
+    retry rather than surfacing a broken image to the viewer."""
+    global PDF
+    with _PDF_LOCK:
+        try:
+            pix = PDF.load_page(page_num - 1).get_pixmap(dpi=dpi, alpha=False)
+        except Exception:
+            PDF = fitz.open(PDF_PATH)
+            pix = PDF.load_page(page_num - 1).get_pixmap(dpi=dpi, alpha=False)
+        return pix.tobytes("png"), pix.width, pix.height
+
+
+def _load_sections() -> list[dict]:
+    """Issue (section) boundaries, sorted by start page, so a citation can open the whole section the
+    cited page belongs to — not just the lone page."""
+    rows: list[dict] = []
+    path = ROOT / "index" / "issues.jsonl"
+    if not path.exists():
+        return rows
+    with path.open() as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            if row.get("page_start") and row.get("page_end"):
+                rows.append(row)
+    rows.sort(key=lambda r: int(r["page_start"]))
+    return rows
+
+
+_SECTIONS = _load_sections()
+
+
+def _section_for_page(n: int) -> dict | None:
+    for row in _SECTIONS:
+        if int(row["page_start"]) <= n <= int(row["page_end"]):
+            return row
+    return None
 
 _basic = HTTPBasic(auto_error=False)
 
@@ -87,8 +138,28 @@ def page_image(n: int, dpi: int = 130) -> Response:
         return Response("page not found", status_code=404)
     # dpi is the viewer's zoom control; clamp so a stray value can't ask for a giant render.
     dpi = max(72, min(int(dpi), 220))
-    pix = PDF.load_page(n - 1).get_pixmap(dpi=dpi, alpha=False)
-    return Response(pix.tobytes("png"), media_type="image/png")
+    png, _, _ = _render_page(n, dpi)
+    return Response(png, media_type="image/png")
+
+
+@app.get("/page_section/{n}")
+def page_section(n: int) -> dict:
+    # The section (issue) a cited page belongs to, so the viewer can present the whole section the
+    # citation refers to and scope navigation to it.
+    section = _section_for_page(n) if 1 <= n <= len(PDF) else None
+    if not section:
+        return {"page": n, "section": None}
+    return {
+        "page": n,
+        "section": {
+            "issue_id": section.get("issue_id"),
+            "title": section.get("title"),
+            "issue_date": section.get("issue_date"),
+            "page_start": int(section["page_start"]),
+            "page_end": int(section["page_end"]),
+            "n_pages": int(section.get("n_pages") or (int(section["page_end"]) - int(section["page_start"]) + 1)),
+        },
+    }
 
 
 def _plain(value: object) -> str:
@@ -201,16 +272,16 @@ class ReportPdf:
         if page_num < 1 or page_num > len(PDF):
             return
 
-        pix = PDF.load_page(page_num - 1).get_pixmap(dpi=115, alpha=False)
+        png, pix_w, pix_h = _render_page(page_num, 115)
         img_w = CONTENT_W
-        img_h = img_w * (pix.height / pix.width)
+        img_h = img_w * (pix_h / pix_w)
         if img_h > 575:
             img_h = 575
-            img_w = img_h * (pix.width / pix.height)
+            img_w = img_h * (pix_w / pix_h)
         self.ensure(img_h + 58)
         assert self.page is not None
         rect = fitz.Rect(MARGIN, self.y, MARGIN + img_w, self.y + img_h)
-        self.page.insert_image(rect, stream=pix.tobytes("png"))
+        self.page.insert_image(rect, stream=png)
         self.y += img_h + 8
         caption = _plain(ev.get("caption") or "Chart")
         self.text(f"{caption} [p. {page_num}]", size=9, color=MUTED, gap=8)

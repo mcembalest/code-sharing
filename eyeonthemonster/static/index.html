@@ -508,7 +508,67 @@
     font: inherit;
   }
   #viewer-bar .v-open { color: #9fe0ec; text-decoration: none; align-self: center; font-size: 12px; }
-  #viewer-scroll { flex: 1 1 auto; overflow: auto; display: flex; justify-content: center; padding: 1.2rem; }
+  /* Section sub-bar — names the issue (section) the cited page belongs to and scopes navigation to it. */
+  #viewer-section {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    padding: .4rem .9rem;
+    background: #161c20;
+    color: #c3ccd2;
+    border-bottom: 1px solid #2a333a;
+    font-size: 12px;
+    flex: 0 0 auto;
+  }
+  #viewer-section[hidden] { display: none; }
+  #viewer-section .vspacer { flex: 1; }
+  #viewer-section .vs-meta { min-width: 0; display: flex; align-items: baseline; gap: .55rem; overflow: hidden; }
+  #viewer-section .vs-title {
+    font-weight: 600;
+    color: #e9ecef;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 52vw;
+  }
+  #viewer-section .vs-range { color: #9aa6ad; white-space: nowrap; }
+  #viewer-section .vs-pos { color: #9aa6ad; white-space: nowrap; }
+  #viewer-section .vs-jump {
+    border: 1px solid #3a454c;
+    background: #2a333a;
+    color: #e9ecef;
+    padding: .28rem .6rem;
+    font: inherit;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+  #viewer-section .vs-jump:hover:not(:disabled) { border-color: var(--accent); }
+  #viewer-section .vs-jump:disabled { opacity: .45; cursor: default; }
+  #viewer-scroll { flex: 1 1 auto; overflow: auto; display: flex; justify-content: center; padding: 1.2rem; position: relative; }
+  /* Render-failure fallback — shown when a page image fails to load even after a silent retry. */
+  #viewer-error {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: #e9ecef;
+    background: #1b2227;
+    border: 1px solid #3a454c;
+    border-radius: 6px;
+    padding: 1.4rem 1.8rem;
+    box-shadow: 0 6px 30px rgba(0,0,0,.4);
+  }
+  #viewer-error[hidden] { display: none; }
+  #viewer-error p { margin: 0 0 .8rem; }
+  #viewer-error button {
+    border: 1px solid var(--accent);
+    background: #2a333a;
+    color: #e9ecef;
+    padding: .4rem .9rem;
+    cursor: pointer;
+  }
+  #viewer-error button:hover { background: var(--accent); color: #0c1417; }
   #viewer-img {
     max-width: min(1000px, 100%);
     height: max-content;
@@ -567,7 +627,22 @@
     <span class="vspacer"></span>
     <button id="v-close" title="Close (Esc)">Close &times;</button>
   </div>
-  <div id="viewer-scroll"><img id="viewer-img" alt=""></div>
+  <div id="viewer-section" hidden>
+    <button id="vs-start" class="vs-jump" title="Jump to the first page of this section">&#8682; Section start</button>
+    <div class="vs-meta">
+      <span id="vs-title" class="vs-title"></span>
+      <span id="vs-range" class="vs-range"></span>
+    </div>
+    <span class="vspacer"></span>
+    <span id="vs-pos" class="vs-pos"></span>
+  </div>
+  <div id="viewer-scroll">
+    <img id="viewer-img" alt="">
+    <div id="viewer-error" hidden>
+      <p>This page didn&rsquo;t render.</p>
+      <button id="v-retry" type="button">Retry</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1239,7 +1314,7 @@ function linkifyCitations(root) {
       span.className = 'pageref';
       span.textContent = m[0];
       span.dataset.page = String(pageNum);
-      span.title = 'Open page ' + pageNum + ' in the monster PDF';
+      span.title = 'Open p. ' + pageNum + ' and its section in the monster PDF';
       span.onclick = () => openPage(pageNum);
       frag.appendChild(span);
       last = m.index + m[0].length;
@@ -1261,6 +1336,9 @@ function wirePageLinks(root) {
 let viewerPage = null;
 let viewerTotal = null;
 let viewerZoom = false;
+let viewerSection = null;  // the issue (section) the current page belongs to, {page_start, page_end, ...}
+let imgAttempt = 0;        // render-retry counter for the page currently being loaded
+const sectionCache = {};   // page -> section payload, so paging within a section doesn't refetch
 fetch('/meta').then(r => r.json()).then(d => {
   viewerTotal = Number(d.pages) || null;
   // If the viewer opened before the total arrived, re-evaluate the nav bounds now.
@@ -1274,17 +1352,34 @@ function openPage(n) {
   showViewerPage(n);
 }
 
+function loadPageImage(n) {
+  // Set the image src and recover from the occasional render failure: retry once silently with a
+  // cache-buster (a concurrent-render hiccup usually clears on the next request), then surface a
+  // Retry button rather than leaving a broken image.
+  const img = $('viewer-img');
+  const dpi = viewerZoom ? 200 : 130;
+  imgAttempt = 0;
+  $('viewer-error').hidden = true;
+  img.classList.add('loading');
+  const attempt = () => {
+    img.src = `/page_image/${n}?dpi=${dpi}` + (imgAttempt ? `&r=${imgAttempt}` : '');
+  };
+  img.onload = () => { img.classList.remove('loading'); $('viewer-error').hidden = true; };
+  img.onerror = () => {
+    if (imgAttempt < 1) { imgAttempt++; attempt(); return; }
+    img.classList.remove('loading');
+    img.removeAttribute('src');
+    $('viewer-error').hidden = false;
+  };
+  attempt();
+}
+
 function showViewerPage(n) {
   if (viewerTotal) n = Math.max(1, Math.min(n, viewerTotal));
   else n = Math.max(1, n);
   viewerPage = n;
-  const img = $('viewer-img');
-  img.classList.add('loading');
-  const dpi = viewerZoom ? 200 : 130;
-  img.onload = () => img.classList.remove('loading');
-  img.onerror = () => img.classList.remove('loading');
-  img.src = `/page_image/${n}?dpi=${dpi}`;
-  img.alt = 'Eye on the Monster, page ' + n;
+  loadPageImage(n);
+  $('viewer-img').alt = 'Eye on the Monster, page ' + n;
   $('v-pagenum').value = n;
   $('v-open').href = `/page_image/${n}?dpi=220`;
   $('viewer-bar').querySelector('.vtitle').textContent =
@@ -1294,6 +1389,37 @@ function showViewerPage(n) {
   // page into a 404 that silently leaves the viewer on the prior page.
   $('v-next').disabled = viewerTotal ? n >= viewerTotal : true;
   $('viewer-scroll').scrollTop = 0;
+  updateSection(n);
+}
+
+function renderSection(n) {
+  // Paint the section sub-bar for page n from viewerSection (the issue that contains it).
+  const sec = viewerSection;
+  const bar = $('viewer-section');
+  if (!sec || n < sec.page_start || n > sec.page_end) { bar.hidden = true; return; }
+  bar.hidden = false;
+  const date = sec.issue_date || 'undated';
+  $('vs-title').textContent = sec.title || 'Section';
+  $('vs-title').title = (sec.title || 'Section') + ' — ' + date;
+  $('vs-range').textContent = `${date} · pp. ${sec.page_start}–${sec.page_end}`;
+  $('vs-pos').textContent = `page ${n - sec.page_start + 1} of ${sec.n_pages} in this section`;
+  $('vs-start').disabled = n <= sec.page_start;
+}
+
+function updateSection(n) {
+  // Reuse the cached section while paging inside it; otherwise fetch the issue this page belongs to.
+  if (viewerSection && n >= viewerSection.page_start && n <= viewerSection.page_end) {
+    renderSection(n);
+    return;
+  }
+  if (sectionCache[n]) { viewerSection = sectionCache[n]; renderSection(n); return; }
+  $('viewer-section').hidden = true;
+  fetch(`/page_section/${n}`).then(r => r.json()).then(d => {
+    const sec = d && d.section;
+    if (sec) for (let p = sec.page_start; p <= sec.page_end; p++) sectionCache[p] = sec;
+    viewerSection = sec || null;
+    if (viewerPage === n) renderSection(n);  // ignore a stale response if the user paged on
+  }).catch(() => {});
 }
 
 function closeViewer() {
@@ -1304,10 +1430,12 @@ function closeViewer() {
 $('v-prev').onclick = () => showViewerPage((viewerPage || 1) - 1);
 $('v-next').onclick = () => showViewerPage((viewerPage || 0) + 1);
 $('v-close').onclick = closeViewer;
+$('v-retry').onclick = () => { if (viewerPage) loadPageImage(viewerPage); };
+$('vs-start').onclick = () => { if (viewerSection) showViewerPage(viewerSection.page_start); };
 $('v-zoom').onclick = () => {
   viewerZoom = !viewerZoom;
   $('v-zoom').textContent = viewerZoom ? 'Zoom −' : 'Zoom +';
-  if (viewerPage) showViewerPage(viewerPage);
+  if (viewerPage) loadPageImage(viewerPage);
 };
 $('v-pagenum').addEventListener('change', () => {
   const v = Number($('v-pagenum').value);

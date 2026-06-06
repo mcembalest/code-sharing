@@ -161,7 +161,11 @@ After calling ask_user, STOP — no further tool calls, no answer. The run ends;
 and re-runs.
 
 OUTPUT CONTRACT
-- Every claim carries a page citation: [p. N] for one page, [pp. N-M] for a span.
+- Every claim carries a page citation: [p. N] for one page, [pp. N-M] for a span. These are not
+  decoration — the UI turns every [p. N] into a clickable link that opens the source page, and the
+  reader relies on them to verify and explore. A line the reader sees without a [p. N] is a dead end
+  and counts as a defect. Treat "did I attach a page link?" as the last check on every line you emit,
+  ESPECIALLY each bullet of the final answer block.
 - The report IS the accumulation of report-lane events. find_mentions and enumerate auto-commit
   their findings — do NOT use add_report_items to re-add them.
 - Manual synthesis must be batched: call add_report_items once with the ordered item list rather
@@ -177,9 +181,11 @@ OUTPUT CONTRACT
   copy verbatim from content_text, or drop the quotes and present as paraphrase.
 - ANSWER BLOCK depends on shape. TOPICAL and ANALYTICAL queries: FINISH by calling add_report_items
   with exactly one answer item containing a compact author-facing coverage map (4–6 bullets / short
-  paragraphs; coverage areas, chronology, primary cited pages). The answer item itself should cite
-  representative primary pages inline; do not run extra searches only to make the answer more
-  citation-dense. Chronology labels must be
+  paragraphs; coverage areas, chronology, primary cited pages). EVERY bullet/line of the answer
+  MUST carry at least one inline [p. N] / [pp. N-M] link to its strongest source — a linkless answer
+  bullet is the single most common defect and is not acceptable; pull the page number from a finding
+  you already committed rather than running extra searches just to be citation-dense. Chronology
+  labels must be
   coherent date ranges ("2014–2026", never reversed). NARROW / FACTUAL queries: ALWAYS finish
   with a one- or two-sentence answer block when the question is yes/no, temporal ("in 2007"),
   superlative ("earliest", "highest"), or negative — the reader needs the direct verdict, not a
