@@ -300,7 +300,7 @@ the debug trace scrolls on the right (collapsible). Events route by `lane`. No b
 `marked` from CDN; each fragment renders as a complete markdown block (no half-parsed flicker).
 
 ```html
-<!doctype html><meta charset="utf-8"><title>Eye on the Monster — live report</title>
+<!doctype html><meta charset="utf-8"><title>Eye on the Monster</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
   body{font:14px/1.5 system-ui;margin:0}

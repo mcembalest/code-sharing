@@ -17,6 +17,12 @@ ENUMERATE_RE = re.compile(
     r"surfaced (?P<surfaced>\d+) on-point \((?P<primary>\d+) primary\) at floor (?P<floor>[0-9.]+)"
     r"(?:, aggregated (?P<below_floor>\d+) below floor)?"
 )
+WS_RE = re.compile(r"\s+")
+
+
+def snippet(text: str, limit: int = 1200) -> str:
+    flat = WS_RE.sub(" ", text or "").strip()
+    return flat[:limit] + ("…" if len(flat) > limit else "")
 
 
 def cited_pages_from_text(text: str) -> set[int]:
@@ -62,6 +68,8 @@ async def collect(query: str) -> dict[str, Any]:
     committed_pages: set[int] = set()
     cited_pages: set[int] = set()
     answer_pages: set[int] = set()
+    answer_texts: list[str] = []
+    errors: list[str] = []
     run_meta: dict[str, Any] = {}
     events = 0
     started = time.perf_counter()
@@ -78,15 +86,24 @@ async def collect(query: str) -> dict[str, Any]:
                 "num_turns": event.get("num_turns"),
                 "duration_ms": event.get("duration_ms"),
                 "is_error": bool(event.get("is_error")),
+                "subtype": event.get("subtype"),
+                "stop_reason": event.get("stop_reason"),
+                "result": event.get("result"),
+                "errors": event.get("errors"),
+                "api_error_status": event.get("api_error_status"),
             }
         if event.get("lane") == "report":
             report_items += 1
             if event.get("kind") in {"quote", "chart"}:
                 committed_pages.update(event_pages(event))
             if event.get("kind") == "answer":
-                answer_pages.update(cited_pages_from_text(str(event.get("text") or "")))
+                text = str(event.get("text") or "")
+                answer_texts.append(text)
+                answer_pages.update(cited_pages_from_text(text))
         if event.get("lane") != "trace":
             continue
+        if event.get("type") == "error":
+            errors.append(str(event.get("text") or ""))
         if event.get("type") == "tool_call":
             tool_calls.append({"name": event.get("name"), "args": event.get("args")})
         if event.get("type") == "tool_result":
@@ -118,6 +135,11 @@ async def collect(query: str) -> dict[str, Any]:
         "num_turns": run_meta.get("num_turns"),
         "duration_ms": run_meta.get("duration_ms"),
         "is_error": run_meta.get("is_error"),
+        "subtype": run_meta.get("subtype"),
+        "stop_reason": run_meta.get("stop_reason"),
+        "result": run_meta.get("result"),
+        "sdk_errors": run_meta.get("errors"),
+        "api_error_status": run_meta.get("api_error_status"),
         "events": events,
         "tool_call_count": len(tool_calls),
         "tool_path": [str(call.get("name") or "") for call in tool_calls],
@@ -131,6 +153,8 @@ async def collect(query: str) -> dict[str, Any]:
         "cited_page_count": len(cited_pages),
         "answer_pages": sorted(answer_pages),
         "answer_page_count": len(answer_pages),
+        "answer_texts": answer_texts,
+        "errors": errors,
     }
 
 
@@ -182,6 +206,18 @@ async def main() -> None:
         f"turns={result.get('num_turns') or 'n/a'}{wall_str}{err_str}"
     )
     print(f"events: {result['events']}")
+    if result["errors"]:
+        print("errors:")
+        for text in result["errors"]:
+            print(snippet(text, 1200))
+    if result.get("is_error"):
+        print("sdk error detail:")
+        print(f"subtype={result.get('subtype')} stop_reason={result.get('stop_reason')} api_error_status={result.get('api_error_status')}")
+        if result.get("sdk_errors"):
+            for text in result["sdk_errors"]:
+                print(snippet(str(text), 1200))
+        if result.get("result"):
+            print(snippet(str(result["result"]), 1200))
     print(f"tool calls: {result['tool_call_count']}")
     print("tool path:")
     for name in result["tool_path"]:
@@ -203,6 +239,10 @@ async def main() -> None:
     print(", ".join(f"p. {page}" for page in result["cited_pages"]) or "none")
     print(f"answer pages ({result['answer_page_count']}):")
     print(", ".join(f"p. {page}" for page in result["answer_pages"]) or "none")
+    if result["answer_texts"]:
+        print("answer text:")
+        for text in result["answer_texts"]:
+            print(snippet(text, 1200))
     if result.get("score"):
         sc = result["score"]
         print(f"SCORE vs golden: recall={sc['recall']} precision={sc['precision']} "
