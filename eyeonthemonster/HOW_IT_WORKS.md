@@ -50,11 +50,12 @@ _diag/pages_clean.jsonl ── 5,117 page records {page, issue_date, content_tex
 The embedding model is `static-retrieval-mrl-en-v1` — benchmarked against transformer models and kept
 because it ties/beats them on this corpus while being far faster (see DECISIONS.md).
 
-> **Reproducibility note.** The raw source `_diag/pages_clean.jsonl` and the PDF→pages structural
-> scripts are no longer kept in the repo. The durable artifacts are the **PDF** and the built
-> **`index/`** (and `index/pages.json` retains every page's `content_text` + `card_text`). The
-> `build_*.py` scripts document how the index was produced and still run the cards/topics/index
-> stages, but a from-scratch rebuild would first need `_diag/pages_clean.jsonl` restored.
+> **Reproducibility.** The PDF→pages chain lives in `_diag/` (`scan.py` → `enrich.py` →
+> `strip_disclaimers.py`); see `_diag/README.md`. Its `*.jsonl` outputs (incl. `pages_clean.jsonl`)
+> are gitignored because they're large and fully regenerable — recreate them offline with
+> `uv run python _diag/scan.py && uv run python _diag/enrich.py && uv run python _diag/strip_disclaimers.py`
+> (deterministic; verified to reproduce the exact 5,117-record / 4,882-kept set the deployed index was
+> built from). The durable artifacts are the **PDF** + `_diag/` scripts + the built **`index/`**.
 
 ---
 
@@ -136,7 +137,7 @@ session mid-run (see TODO.md → Design decisions).
 
 ## Repo map
 
-- **Offline build:** `build_issues.py`, `build_cards.py`, `build_topics.py`, `build_index.py`, `clean_text.py`
+- **Offline build:** `_diag/{scan,enrich,strip_disclaimers}.py` (PDF→`pages_clean.jsonl`, see `_diag/README.md`), then `build_issues.py`, `build_cards.py`, `build_topics.py`, `build_index.py`, `clean_text.py`
 - **Runtime:** `agent.py` (7 tools + SDK + two-lane events + shape-aware prompt), `server.py` (SSE + PDF render/export), `static/index.html`
 - **Eval / tuning:** `eval_run.py` (headless run; prints cost/turns/latency), `calibrate.py` (model benchmark + floor calibration → `docs/`)
 - **Deploy:** `modal_app.py`
