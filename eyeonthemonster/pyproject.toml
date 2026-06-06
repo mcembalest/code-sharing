@@ -1,7 +1,7 @@
 [project]
 name = "eyeonthemonster"
 version = "0.1.0"
-description = "Agentic search over the Eye on the Monster PDF, with [p. N] citations and a live-trace report UI. See BUILD_BRIEF.md."
+description = "Agentic search over the Eye on the Monster PDF, with [p. N] citations and a live-trace report UI. See HOW_IT_WORKS.md."
 requires-python = ">=3.10"
 dependencies = [
     # data pipeline + indexing (used by _diag/ and baseline/)
@@ -12,7 +12,7 @@ dependencies = [
     # vision cards
     "google-genai>=0.3.0",
     "python-dotenv>=1.0.0",
-    # agent loop + live UI (BUILD_BRIEF steps 4-5)
+    # agent loop + live UI
     "claude-agent-sdk>=0.1.0",
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",
