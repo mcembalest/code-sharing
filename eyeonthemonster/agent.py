@@ -215,10 +215,17 @@ similarity is conceptual, not lexical — without must_contain, a Greek-default 
 against "Argentina peso default" and get committed. Use partial stems so morphology is covered
 (must_contain=["Argentin"] catches both Argentina and Argentine; must_contain=["Putin","Russia",
 "Kremlin"] for a Putin query). Find_mentions does NOT need this — it already filters lexically.
-4. WIDEN with `search` using several reformulations — vocabulary drifts across 20 years ("solar
-   cost" 2005 vs "module ASP / LCOE" 2025). Use chart_only=true when the question is about what
-   was *shown*. Add genuinely missing widening hits via add_report_items (small handful at most — if
-   widening turns up many candidates, summarize them in the final answer rather than dumping each).
+4. WIDEN with `search` using several reformulations along TWO axes — a single query's ranking is
+   fragile (a valid page swings from rank 1 to rank 25 across phrasings), so never trust one query:
+   (a) VOCABULARY drift across 20 years ("solar cost" 2005 vs "module ASP / LCOE" 2025); and
+   (b) ANALYTICAL ANGLE — a chart is indexed under the ONE framing its description happens to use, so
+   a query in a different framing ranks it far down. The same chart on the euro crisis is reachable as
+   "core vs periphery divergence", "conflicting national interests / who pays for the bailout", or
+   "European Monetary Union political impasse" — issue 3–5 reformulations that hit DIFFERENT angles of
+   the subject, not just synonyms, and UNION the hits. For exhaustive / "show me every chart of X"
+   queries this fan-out is mandatory, and pass a larger limit (up to 25) so a rank-12+ chart is not
+   invisible. Use chart_only=true when the question is about what was *shown*. Add genuinely missing
+   widening hits via add_report_items (a handful — if widening turns up many, summarize in the answer).
 5. READ context with `get` (single page, range, or whole issue) only when you need to verify a
    cross-reference or pull more text — don't loop `get` over pages already summarized by enumerate.
 
@@ -270,7 +277,13 @@ def _norm_date(value: object) -> str | None:
         return f"{int(m.group(3)):04d}-{_MONTHS[m.group(1).lower()]:02d}-{int(m.group(2)):02d}"
     return None
 _emit_queue: contextvars.ContextVar[asyncio.Queue | None] = contextvars.ContextVar("emit_queue", default=None)
-MAX_SEARCH_LIMIT = 10
+MAX_SEARCH_LIMIT = 10  # default search preview depth
+# Hard cap on a single search's returned hits. The default stays 10 (a tight, readable preview), but
+# the agent can request up to here for coverage / "every chart of X" passes. Evidence: a valid chart
+# (the euro-crisis Lego diagram) sat at fused rank 8 under the user's phrasing and 19–25 under
+# reformulations — a cap of 10 made it invisible to widening. 25 keeps those rank-12+ pages reachable
+# without flooding the agent's context. See DECISIONS.md.
+SEARCH_LIMIT_MAX = 25
 MAX_LIST_LIMIT = 10
 MAX_TOPIC_CHILDREN = 5
 MAX_GRANULAR_DRILL = 100  # granular are sorted by page count, so this is the top-100 by coverage
@@ -291,10 +304,15 @@ FIND_MENTIONS_PRIMARY_MAX = 12
 # rest stay in the coverage count and are reported as one aggregate line (never silently dropped).
 # Because it is absolute (not relative-to-top), a loose compound union gets trimmed hard while a
 # tight on-topic union is barely touched — exactly the compound-vs-broad signal, with no per-query
-# logic. It is calibrated to MODEL_NAME's similarity scale (static-retrieval-mrl-en-v1: on-topic
-# pages score ~0.4–0.75, off-topic ~0.1–0.3); re-check it if MODEL_NAME changes or against the
-# golden key. Overridable per call via enumerate(min_relevance=...).
-RELEVANCE_FLOOR = 0.38
+# logic.
+# CALIBRATED, NOT GUESSED (see docs/relevance_floor_calibration.png + DECISIONS.md). calibrate.py
+# builds on-topic vs sibling-off-topic cosine distributions on the deployed static embeddings and
+# takes the Youden's-J max-separation point. On this model on-topic pages average ~0.36 and topically
+# adjacent off-point pages ~0.17; the optimum sits at 0.23. The earlier 0.38 sat ABOVE the on-topic
+# mean and silently discarded ~56% of relevant pages (recall ~44%); 0.23 lifts recall to ~80%. Re-run
+# `uv run python calibrate.py --calibrate` if the embedding model or corpus changes. Overridable per
+# call via enumerate(min_relevance=...).
+RELEVANCE_FLOOR = 0.23
 
 
 def tokenize(text: str) -> list[str]:
@@ -825,12 +843,13 @@ async def find_mentions(args: dict) -> dict:
     "Hybrid keyword+semantic search (RRF fusion of BM25 + embedding cosine) over merged page text, "
     "chart cards, and topic labels. Returns ranked hits — does NOT commit to the report. Use for "
     "widening passes and aliasing; for committing topic-tagged pages, use enumerate; for committing "
-    "exact mentions, use find_mentions.",
+    "exact mentions, use find_mentions. limit defaults to 10; raise it (up to 25) on coverage / "
+    "'every chart of X' passes so a valid but lower-ranked page is not cut off.",
     {"q": str, "date_range": list, "chart_only": bool, "limit": int, "topic_id": str},
 )
 async def search(args: dict) -> dict:
     s = _load()
-    limit = bounded_limit(args.get("limit"))
+    limit = bounded_limit(args.get("limit"), default=MAX_SEARCH_LIMIT, maximum=SEARCH_LIMIT_MAX)
     indices = filtered_indices(args.get("date_range"), bool(args.get("chart_only", False)), args.get("topic_id"))
     if not indices:
         await emit({"lane": "trace", "type": "tool_result", "name": "search", "summary": "0 hits (no pages in scope)"})

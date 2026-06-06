@@ -18,6 +18,8 @@ trace.md
 # browser/session artifacts (Playwright MCP screenshots + snapshots)
 .playwright-mcp/
 *.png
+# ...but keep the calibration visuals that DECISIONS.md depends on
+!docs/*.png
 
 # Claude Code scheduled-wakeup lock (local scratch, not a tracked artifact)
 .claude/scheduled_tasks.lock

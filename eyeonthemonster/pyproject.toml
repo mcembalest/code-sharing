@@ -20,3 +20,11 @@ dependencies = [
 
 [tool.uv]
 package = false
+
+# Offline analysis only (calibrate.py) — NOT needed by the server/agent at runtime, kept out of the
+# Modal image. Run with: uv run --group dev python calibrate.py --calibrate
+[dependency-groups]
+dev = [
+    "matplotlib>=3.8",
+    "scikit-learn>=1.4",
+]
