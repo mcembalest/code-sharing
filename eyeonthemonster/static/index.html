@@ -604,6 +604,91 @@
   @media (max-width: 820px) {
     #recents-menu { min-width: 78vw; right: -1rem; }
   }
+
+  /* ---- "How it works" modal ---- */
+  #howto {
+    position: fixed; inset: 0; z-index: 70;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(15,20,24,.62); backdrop-filter: blur(3px); padding: 2rem;
+  }
+  #howto[hidden] { display: none; }
+  #howto-panel {
+    background: #fff; width: min(960px, 100%); max-height: 92vh;
+    display: flex; flex-direction: column; border-radius: 8px;
+    box-shadow: 0 18px 60px rgba(0,0,0,.4); overflow: hidden;
+  }
+  .ht-bar {
+    display: flex; align-items: baseline; gap: .7rem;
+    padding: .8rem 1.4rem; border-bottom: 2px solid var(--accent); flex: 0 0 auto;
+  }
+  .ht-bar .ht-title { font-weight: 700; font-size: 16px; color: var(--ink); }
+  .ht-bar .ht-sub { font-size: 12px; color: var(--muted); }
+  .ht-bar .ht-spacer { flex: 1; }
+  .ht-bar button {
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+    padding: .35rem .7rem; border-radius: 4px; cursor: pointer; font: inherit;
+  }
+  .ht-bar button:hover { border-color: var(--accent); }
+  .ht-scroll { overflow: auto; padding: 1.6rem 1.8rem 2.2rem; }
+  .ht-scroll > section { margin-bottom: 2.1rem; }
+  .ht-scroll > section:last-child { margin-bottom: .4rem; }
+  .ht-kicker { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  .ht-scroll h2 { font-size: 18px; color: var(--ink); margin: .15rem 0 .6rem; }
+  .ht-scroll p { font-size: 13.5px; line-height: 1.6; color: #2b3238; margin: .4rem 0; max-width: 70ch; }
+  .ht-scroll p.ht-lead { font-size: 14.5px; color: var(--ink); }
+
+  /* stat band */
+  .ht-stats { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
+  .ht-stat { flex: 1 1 120px; background: var(--accent-soft); border: 1px solid #d3e6ea; border-radius: 6px; padding: .7rem .8rem; }
+  .ht-stat b { display: block; font-size: 22px; color: var(--accent); line-height: 1.1; }
+  .ht-stat span { font-size: 11.5px; color: var(--muted); }
+
+  /* numbered step rail (used for the pipeline + the query loop) */
+  .ht-steps { margin: 1rem 0 .2rem; }
+  .ht-step { display: grid; grid-template-columns: 34px 1fr; gap: .9rem; position: relative; padding-bottom: 1.1rem; }
+  .ht-step:not(:last-child)::before {
+    content: ""; position: absolute; left: 16px; top: 30px; bottom: -2px; width: 2px; background: var(--line);
+  }
+  .ht-num {
+    width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; z-index: 1;
+  }
+  .ht-step .ht-body { padding-top: .15rem; }
+  .ht-step h3 { font-size: 14px; color: var(--ink); margin: .35rem 0 .2rem; }
+  .ht-step p { margin: .2rem 0; }
+  .ht-artifact { display: inline-block; margin-top: .35rem; font-size: 11.5px; color: var(--muted); background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: .12rem .45rem; font-family: ui-monospace, Menlo, monospace; }
+
+  /* definition callouts (embeddings / BM25 etc.) */
+  .ht-defs { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; margin-top: .8rem; }
+  .ht-def { border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 5px; padding: .6rem .8rem; background: #fff; }
+  .ht-def b { font-size: 13px; color: var(--ink); }
+  .ht-def p { font-size: 12.5px; margin: .25rem 0 0; }
+
+  /* simple data-flow row (the corpus diagram) */
+  .ht-flow { display: flex; align-items: stretch; gap: .5rem; flex-wrap: wrap; margin-top: 1rem; }
+  .ht-node { flex: 1 1 0; min-width: 130px; background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: .7rem .8rem; }
+  .ht-node .ht-node-t { font-weight: 700; font-size: 12.5px; color: var(--ink); }
+  .ht-node .ht-node-d { font-size: 11.5px; color: var(--muted); margin-top: .25rem; line-height: 1.45; }
+  .ht-arrow { display: flex; align-items: center; color: var(--accent); font-size: 20px; font-weight: 700; }
+
+  /* two-pane interface mock */
+  .ht-mock { display: grid; grid-template-columns: 1fr 230px; gap: .6rem; margin-top: 1rem; height: 150px; }
+  .ht-mock .mk { border: 1px solid var(--line); border-radius: 6px; padding: .6rem .7rem; font-size: 11px; color: var(--muted); overflow: hidden; }
+  .ht-mock .mk-h { font-weight: 700; font-size: 11px; color: var(--accent); letter-spacing: .05em; text-transform: uppercase; margin-bottom: .4rem; }
+  .ht-mock .mk-line { height: 7px; border-radius: 3px; background: var(--field); margin: .3rem 0; }
+  .ht-mock .mk-line.short { width: 55%; }
+  .ht-mock .mk-cite { display: inline-block; color: var(--accent); border-bottom: 1px dotted var(--accent); font-size: 10.5px; margin-top: .3rem; }
+  .ht-mock .mk-trace { background: #1b2227; color: #c3ccd2; border-color: #2a333a; }
+  .ht-mock .mk-trace .mk-h { color: #9fe0ec; }
+  .ht-mock .mk-trace .mk-line { background: #2a333a; }
+
+  .ht-foot { font-size: 11.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: .9rem; line-height: 1.6; }
+
+  @media (max-width: 720px) {
+    .ht-defs, .ht-mock { grid-template-columns: 1fr; }
+    .ht-mock { height: auto; }
+    .ht-arrow { transform: rotate(90deg); }
+  }
 </style>
 
 <div id="bar">
@@ -617,6 +702,7 @@
   <button id="run" onclick="go()">Run</button>
   <button id="stop" hidden onclick="stopRun()" title="Stop this run (Esc)">Stop</button>
   <button id="new" class="ghost" onclick="newSearch()" title="Clear and start fresh">New</button>
+  <button id="howto-btn" class="ghost" onclick="openHowto()" title="How this system works">How it works</button>
   <div id="recents-wrap">
     <button id="recents-btn" class="ghost" aria-expanded="false" onclick="toggleRecents()" title="Recent queries">Recent &#9662;</button>
     <div id="recents-menu" hidden></div>
@@ -638,6 +724,161 @@
   </div>
   <div id="trace-list"></div>
 </aside>
+
+<div id="howto" hidden role="dialog" aria-modal="true" aria-label="How this system works">
+  <div id="howto-panel">
+    <header class="ht-bar">
+      <span class="ht-title">How this system works</span>
+      <span class="ht-sub">Methodology &amp; data provenance</span>
+      <span class="ht-spacer"></span>
+      <button id="ht-close" type="button">Close &times;</button>
+    </header>
+    <div class="ht-scroll">
+
+      <section>
+        <div class="ht-kicker">Overview</div>
+        <h2>A cited research tool over the Eye on the Market archive</h2>
+        <p class="ht-lead">This application answers questions about the full archive of J.P. Morgan's
+          <i>Eye on the Market</i> by Michael Cembalest. Instead of returning a list of links, an AI agent
+          searches the archive, gathers the relevant passages and charts, and writes an answer in which
+          <b>every statement is tied to the exact source page</b>. The sections below document the data, how
+          it was indexed, and how a question is answered &mdash; so the output can be audited, not just trusted.</p>
+        <div class="ht-stats">
+          <div class="ht-stat"><b>~20 yrs</b><span>of publications</span></div>
+          <div class="ht-stat"><b>5,117</b><span>pages</span></div>
+          <div class="ht-stat"><b>632</b><span>issues (letters)</span></div>
+          <div class="ht-stat"><b>2,300</b><span>charts described</span></div>
+          <div class="ht-stat"><b>4,882</b><span>pages indexed</span></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="ht-kicker">The data</div>
+        <h2>What the system has access to</h2>
+        <p>The source is a single 233&nbsp;MB PDF: roughly 20 years of the publication, 5,117 pages. The
+          letters are chart-heavy, so extracting the written text alone would miss most of the quantitative
+          content. The system therefore captures <b>both the prose and a description of every chart</b>. The
+          unit of retrieval and citation is the individual page; 235 pages that are purely legal disclaimers
+          are excluded, leaving 4,882 indexed pages.</p>
+        <div class="ht-flow">
+          <div class="ht-node"><div class="ht-node-t">Source PDF</div><div class="ht-node-d">233&nbsp;MB &middot; ~20 years of issues</div></div>
+          <div class="ht-arrow">&rarr;</div>
+          <div class="ht-node"><div class="ht-node-t">5,117 pages</div><div class="ht-node-d">each carries written analysis and, often, charts</div></div>
+          <div class="ht-arrow">&rarr;</div>
+          <div class="ht-node"><div class="ht-node-t">Per page</div><div class="ht-node-d">prose&nbsp;+&nbsp;chart description &mdash; the citable unit</div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="ht-kicker">Preparation</div>
+        <h2>How the archive was indexed (done once, offline)</h2>
+        <p>Before any question is asked, the archive is processed once into a searchable index. The
+          time-consuming work happens here so that answering a query later is fast.</p>
+        <div class="ht-steps">
+          <div class="ht-step"><div class="ht-num">1</div><div class="ht-body">
+            <h3>Extract &amp; clean</h3>
+            <p>Each page's text is extracted; running headers, repeated legal disclaimers, and footers are
+              removed, and each page is assigned its publication date.</p>
+            <span class="ht-artifact">5,117 clean page records</span>
+          </div></div>
+          <div class="ht-step"><div class="ht-num">2</div><div class="ht-body">
+            <h3>Describe every chart</h3>
+            <p>A vision model (Google Gemini Flash) reads each chart-bearing page image and writes a precise
+              prose description &mdash; titles, axes, data series, and the specific figures &mdash; so that
+              visual content becomes searchable text.</p>
+            <span class="ht-artifact">~2,300 chart descriptions</span>
+          </div></div>
+          <div class="ht-step"><div class="ht-num">3</div><div class="ht-body">
+            <h3>Build a topic map</h3>
+            <p>Topic phrases are extracted from each page and normalized into a consistent taxonomy &mdash;
+              14 high-level themes and 3,933 specific topics. This collapses 20 years of shifting terminology
+              (for example, &ldquo;solar cost&rdquo; in 2005 and &ldquo;module ASP / LCOE&rdquo; in 2025) into
+              a single topic, so coverage can be measured.</p>
+            <span class="ht-artifact">14 themes &middot; 3,933 topics</span>
+          </div></div>
+          <div class="ht-step"><div class="ht-num">4</div><div class="ht-body">
+            <h3>Construct the search index</h3>
+            <p>Each page's combined text (prose&nbsp;+&nbsp;chart description&nbsp;+&nbsp;topics) is turned
+              into two complementary search structures:</p>
+            <div class="ht-defs">
+              <div class="ht-def"><b>Keyword index (BM25)</b><p>Matches exact words and phrases &mdash; precise
+                for names, tickers, and specific terminology.</p></div>
+              <div class="ht-def"><b>Embeddings</b><p>Each page is converted into a vector of numbers that
+                represents its meaning. Pages about similar ideas sit close together, so a query can match a
+                page even when it uses different words.</p></div>
+            </div>
+          </div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="ht-kicker">At query time</div>
+        <h2>How a question is answered</h2>
+        <p>When you submit a question, the agent runs a short, transparent research loop rather than a single
+          lookup:</p>
+        <div class="ht-steps">
+          <div class="ht-step"><div class="ht-num">1</div><div class="ht-body">
+            <h3>Classify the question</h3>
+            <p>The agent first determines the type of question &mdash; a narrow factual lookup, a broad
+              &ldquo;everything about X&rdquo; survey, or an analytical question &mdash; and matches its effort
+              to that type.</p>
+          </div></div>
+          <div class="ht-step"><div class="ht-num">2</div><div class="ht-body">
+            <h3>Search the archive</h3>
+            <p>It draws on three complementary methods: <b>exact-mention</b> search for named entities and
+              phrases; <b>combined keyword&nbsp;+&nbsp;meaning</b> search for broader recall; and <b>topic
+              enumeration</b>, which pulls every page tagged to the relevant topics for exhaustive coverage.</p>
+          </div></div>
+          <div class="ht-step"><div class="ht-num">3</div><div class="ht-body">
+            <h3>Rank &amp; filter</h3>
+            <p>Candidate pages are ranked by relevance to the question. A calibrated threshold separates pages
+              that are genuinely on point from those only loosely related, which are summarized rather than
+              quoted.</p>
+          </div></div>
+          <div class="ht-step"><div class="ht-num">4</div><div class="ht-body">
+            <h3>Read &amp; gather evidence</h3>
+            <p>The agent reads the strongest pages in full and collects the supporting quotes and charts,
+              recording which search produced each one.</p>
+          </div></div>
+          <div class="ht-step"><div class="ht-num">5</div><div class="ht-body">
+            <h3>Synthesize a cited answer</h3>
+            <p>It writes a direct answer with inline page citations, repeating the search-and-read steps until
+              the evidence is sufficient &mdash; then stops.</p>
+          </div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="ht-kicker">The interface</div>
+        <h2>What you see, and why</h2>
+        <p>The interface is built for verification. The report presents the answer first, followed by findings
+          grouped by theme: the most directly relevant (&ldquo;primary&rdquo;) findings are shown in full, and
+          supporting ones are collapsed. A separate <b>agent trace</b> records every search the agent ran and
+          every step it took &mdash; full transparency into how the answer was produced. Every <b>[p.&nbsp;N]</b>
+          citation is a link: clicking it opens the actual page from the PDF, within its full issue, so any
+          claim can be checked at the source.</p>
+        <div class="ht-mock">
+          <div class="mk">
+            <div class="mk-h">Report</div>
+            <div class="mk-line"></div><div class="mk-line"></div><div class="mk-line short"></div>
+            <span class="mk-cite">[p. 1670]</span>
+            <div class="mk-line" style="margin-top:.6rem"></div><div class="mk-line short"></div>
+            <span class="mk-cite">[pp. 337, 385]</span>
+          </div>
+          <div class="mk mk-trace">
+            <div class="mk-h">Agent trace</div>
+            <div class="mk-line"></div><div class="mk-line short"></div>
+            <div class="mk-line"></div><div class="mk-line short"></div>
+          </div>
+        </div>
+        <p class="ht-foot">Models &mdash; chart reading: Google Gemini Flash &middot; retrieval: static
+          embeddings&nbsp;+&nbsp;BM25 keyword search &middot; agent: Claude (selectable: Haiku, Sonnet, Opus).
+          Every claim shown to you carries a page citation by design.</p>
+      </section>
+
+    </div>
+  </div>
+</div>
 
 <div id="viewer" hidden role="dialog" aria-modal="true" aria-label="Monster PDF page viewer">
   <div id="viewer-bar">
@@ -1493,6 +1734,19 @@ $('v-pagenum').addEventListener('change', () => {
 });
 $('viewer').addEventListener('click', e => { if (e.target === $('viewer')) closeViewer(); });
 
+// ---- "How it works" modal ----
+function openHowto() {
+  $('howto').hidden = false;
+  document.body.style.overflow = 'hidden';
+  $('howto').querySelector('.ht-scroll').scrollTop = 0;
+}
+function closeHowto() {
+  $('howto').hidden = true;
+  if ($('viewer').hidden) document.body.style.overflow = '';  // don't unlock if the page viewer is open
+}
+$('ht-close').onclick = closeHowto;
+$('howto').addEventListener('click', e => { if (e.target === $('howto')) closeHowto(); });
+
 // ---- Recent queries (persisted) ----
 const RECENTS_KEY = 'recentQueries';
 
@@ -1567,6 +1821,10 @@ document.addEventListener('click', e => {
 
 // ---- Global keyboard: Esc closes viewer/recents or stops a run; arrows page the viewer ----
 document.addEventListener('keydown', e => {
+  if (!$('howto').hidden) {                 // topmost layer — Esc closes it first
+    if (e.key === 'Escape') closeHowto();
+    return;
+  }
   if (!$('viewer').hidden) {
     if (e.key === 'Escape') { closeViewer(); }
     // Don't hijack arrows while the user is typing a page number in the input.
