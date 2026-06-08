@@ -1585,11 +1585,18 @@ function newSearch() {
   $('q').focus();
 }
 
-// ---- Clickable [p. N] / [pp. N-M] / [pp. N, M, K-L] citations -> page viewer ----
-// The outer match grabs a whole citation INCLUDING comma-separated lists and ranges, so multi-page
-// citations like [pp. 337, 385, 906] linkify every page — not just the simple [p. N] / [pp. N-M]
-// forms (the earlier regex stopped at the first page, leaving list citations as dead plain text).
-const CITE_RE = /\[(pp?)\.\s*(\d[\d\s,–—-]*)\]/g;
+// ---- Clickable page citations -> page viewer ----
+// A page citation is introduced by the marker "p." (one page) or "pp." (a span or list), followed
+// by a run of page numbers: single pages, hyphen/en-dash ranges, and comma-separated lists. We
+// anchor on the MARKER itself, never on the surrounding "[ ]". The bracket is irrelevant: the agent
+// is told to write "[p. N]" but in practice slips prose inside the brackets — e.g.
+//   "[pp. 3789-3799, esp. cost discussion p. 3792 and the dead-ends conclusion p. 3799]"
+// Anchoring on the bracket body left such citations entirely dead (words broke the match). Anchoring
+// on each "p."/"pp." marker instead linkifies EVERY page named, wherever it sits in the prose.
+// The number run stops at the first token that is not a page / range / comma separator, so trailing
+// words ("esp.", "and the conclusion") cleanly end one citation and the next marker starts the next.
+const PAGE_RUN = String.raw`\d+(?:\s*[-–—]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–—]\s*\d+)?)*`;
+const CITE_RE = new RegExp(String.raw`\bpp?\.\s*` + PAGE_RUN, 'g');
 // Each individual page token inside a citation: a single page or a hyphenated range.
 const PAGE_TOKEN_RE = /\d+(?:\s*[-–—]\s*\d+)?/g;
 
@@ -1604,19 +1611,17 @@ function pagerefSpan(token) {
   return span;
 }
 
-function appendCitation(frag, prefix, inner) {
-  // Rebuild "[pp. <pages>]" with every page number / range as its own clickable pageref, keeping the
-  // commas and brackets as plain text in between.
-  frag.appendChild(document.createTextNode('[' + prefix + '. '));
+function appendCitation(frag, matchText) {
+  // matchText is one citation, "p. <run>" or "pp. <run>". Keep the marker ("p."/"pp.") and the comma
+  // separators as plain text; wrap each page number / range token as its own clickable pageref.
   let last = 0, t;
   PAGE_TOKEN_RE.lastIndex = 0;
-  while ((t = PAGE_TOKEN_RE.exec(inner))) {
-    if (t.index > last) frag.appendChild(document.createTextNode(inner.slice(last, t.index)));
+  while ((t = PAGE_TOKEN_RE.exec(matchText))) {
+    if (t.index > last) frag.appendChild(document.createTextNode(matchText.slice(last, t.index)));
     frag.appendChild(pagerefSpan(t[0]));
     last = t.index + t[0].length;
   }
-  if (last < inner.length) frag.appendChild(document.createTextNode(inner.slice(last)));
-  frag.appendChild(document.createTextNode(']'));
+  if (last < matchText.length) frag.appendChild(document.createTextNode(matchText.slice(last)));
 }
 
 function linkifyCitations(root) {
@@ -1624,7 +1629,7 @@ function linkifyCitations(root) {
   // interactive (buttons, links, existing pagerefs) so we don't double-wrap.
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
-      if (!node.nodeValue || !/\[pp?\.\s*\d/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+      if (!node.nodeValue || !/\bpp?\.\s*\d/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
       const p = node.parentElement;
       if (p && p.closest('a, button, .pageref, code, script')) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
@@ -1640,7 +1645,7 @@ function linkifyCitations(root) {
     CITE_RE.lastIndex = 0;
     while ((m = CITE_RE.exec(text))) {
       if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
-      appendCitation(frag, m[1], m[2]);  // m[1] = "p"/"pp", m[2] = the page list/range body
+      appendCitation(frag, m[0]);  // the whole "p. N" / "pp. N-M, K" marker-plus-page-run
       last = m.index + m[0].length;
     }
     if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
