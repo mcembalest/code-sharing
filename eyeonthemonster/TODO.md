@@ -40,9 +40,9 @@ git history, not here.
   route by region instead. Harmless; add an `equit` stem if it ever matters.
 - **Issue-boundary spot-checks** — eyeball `index/issues.jsonl` around 2015-09-08, 2018-12-10,
   2026-03-03 (likely legit multi-page special reports, but confirm boundaries).
-- **Cost display on the retry path** — a resumed run's `total_cost_usd` covers only the continuation,
-  so the displayed cost can undercount after a transient drop. Rare, cosmetic; the live cross-attempt
-  estimate does accumulate both.
+- **Cost display on the retry path** — the displayed cost is the SDK's `total_cost_usd`, and a
+  resumed run's figure covers only the continuation, so it can undercount after a transient drop.
+  Rare, cosmetic. (We report only the SDK number — there is no self-computed estimate to fall back on.)
 
 ## Optional (not a release gate)
 

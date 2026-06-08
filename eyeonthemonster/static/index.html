@@ -112,23 +112,45 @@
   #status.error #pulse { background: var(--danger); }
   #status-text, #tool-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #tool-text { font-size: 12px; }
-  #progress {
-    grid-column: 1 / -1;
-    width: 100%;
-    height: 3px;
-    overflow: hidden;
-    background: #e7ebed;
-    border-radius: 999px;
+  /* Live plan checklist — deliberately PERIPHERAL. It's pinned in the left gutter, just outside the
+     centered report column, and greyed back so it reads as ambient "what the agent is doing" metadata,
+     never competing with the report (answer/findings) which stays centered. `right: calc(50% + 552px)`
+     anchors its right edge 12px left of the 1080px report (half-width 540); it fills the remaining left
+     gutter and is hidden when the gutter gets too small to hold it without crowding the report. */
+  #plan {
+    position: fixed;
+    top: calc(var(--bar-h) + 1.55rem);
+    left: 16px;
+    right: calc(50% + 552px);
+    max-width: 230px;
+    max-height: calc(100vh - var(--bar-h) - 3.5rem);
+    overflow: auto;
+    padding: .55rem .7rem .65rem;
+    border-left: 2px solid var(--line);
+    opacity: .62;
+    transition: opacity .15s ease;
+    z-index: 10;
   }
-  #progress-bar {
-    height: 100%;
-    width: 0%;
-    background: var(--accent);
-    transition: width .25s ease;
+  #plan:hover { opacity: 1; }            /* bring it forward only when the reader chooses to look */
+  #plan[hidden] { display: none; }
+  @media (max-width: 1367px) { #plan { display: none !important; } }
+  .plan-label {
+    font-size: 9.5px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 700;
+    margin-bottom: .4rem;
   }
-  #status.running.active #progress-bar {
-    background: linear-gradient(90deg, var(--accent), #59a5a0, var(--accent));
-  }
+  .plan-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+  .plan-item { display: flex; gap: .45rem; align-items: baseline; font-size: 11.5px; line-height: 1.3; color: var(--muted); }
+  .plan-mark { flex: 0 0 .9em; text-align: center; font-weight: 700; }
+  .plan-item.pending .plan-mark::before { content: "\25CB"; color: #9aa3ad; }
+  .plan-item.in_progress .plan-mark::before { content: "\25B8"; color: var(--accent); }
+  .plan-item.completed .plan-mark::before { content: "\2713"; color: var(--ok); }
+  .plan-item.pending .plan-text { color: #9aa3ad; }
+  .plan-item.in_progress .plan-text { font-weight: 600; color: var(--ink); }
+  .plan-item.completed .plan-text { color: var(--muted); text-decoration: line-through; }
   @keyframes pulse {
     70% { box-shadow: 0 0 0 8px rgba(31,122,140,0); }
     100% { box-shadow: 0 0 0 0 rgba(31,122,140,0); }
@@ -309,13 +331,6 @@
     font-weight: 700;
     letter-spacing: .01em;
   }
-  #trace-cost .cost-big.estimate::after {
-    content: " est";
-    font-size: 10px;
-    font-weight: 600;
-    color: #8a949c;
-    text-transform: uppercase;
-  }
   #trace-cost .cost-meta {
     margin-top: .25rem;
     color: #aab2b8;
@@ -349,7 +364,6 @@
   }
   .turn-header .turn-label { font-weight: 600; color: #2f3640; }
   .turn-header .turn-stats { color: #5d6670; }
-  .turn-header .turn-cost { color: var(--accent); font-weight: 600; }
   .turn-header.pending .turn-stats::before { content: '…'; color: #b5bcc2; }
   .turn-body { padding: .35rem .75rem .5rem; }
   .turn-body .ev {
@@ -712,10 +726,13 @@
 </div>
 
 <div id="ask-banner" role="status" aria-live="polite"></div>
+<!-- Peripheral plan checklist: fixed in the left gutter (see #plan CSS), outside the centered report. -->
+<aside id="plan" hidden aria-label="Agent plan"><div class="plan-label">Plan</div><ol class="plan-list"></ol></aside>
 <main id="report"></main>
 <aside id="trace" aria-label="Agent trace">
   <div id="trace-cost">
-    <div class="cost-big" id="cost-big">$0.0000</div>
+    <!-- Cost is the SDK's authoritative total_cost_usd, which only exists at run end; hidden until `done`. -->
+    <div class="cost-big" id="cost-big" hidden></div>
     <div class="cost-meta">
       <span><b id="cost-turns">0</b> turns</span>
       <span><b id="cost-tokens">0</b> tokens</span>
@@ -918,8 +935,9 @@ function fmtMs(ms) {
 
 function resetCostPanel() {
   costTurns = 0; costTokens = 0; runStartMs = Date.now();
-  $('cost-big').textContent = '$0.0000';
-  $('cost-big').classList.add('estimate');
+  // No live cost: the SDK only reports cost at run end, so keep the figure hidden until `done`.
+  $('cost-big').hidden = true;
+  $('cost-big').textContent = '';
   $('cost-turns').textContent = '0';
   $('cost-tokens').textContent = '0';
   $('cost-elapsed').textContent = '0.0s';
@@ -931,28 +949,29 @@ function resetCostPanel() {
 
 function updateCostPanel(ev) {
   if (ev.type === 'usage') {
+    // Token/latency telemetry updates live; cost does not — the SDK has no mid-run dollar figure,
+    // so we never show a self-computed estimate. The cost line stays hidden until `done`.
     costTurns += 1;
     costTokens += (ev.input_tokens || 0) + (ev.output_tokens || 0)
       + (ev.cache_read_tokens || 0) + (ev.cache_write_tokens || 0);
-    // Live figure is a LOWER-BOUND estimate: per-turn output_tokens arrive stubbed (~1) and the real
-    // output only lands at `done`, so prefix '~' to signal it will firm up (and rise) on completion.
-    $('cost-big').textContent = '~' + fmtCost(ev.cost_total);
-    $('cost-big').classList.add('estimate');
     $('cost-turns').textContent = fmtNum(costTurns);
     $('cost-tokens').textContent = fmtNum(costTokens);
   }
   if (ev.type === 'done') {
     if (costElapsedTimer) { clearInterval(costElapsedTimer); costElapsedTimer = null; }
-    // Reconcile to the SDK's authoritative totals: exact billed cost and real token count (which
-    // includes the output our live snapshots stubbed). Drop the '~' — this is the real number now.
-    if (ev.cost_total != null) $('cost-big').textContent = fmtCost(ev.cost_total);
+    // Reveal the SDK's authoritative totals: exact billed cost and real token count (which includes
+    // the output our live snapshots stubbed). cost_total is null when the SDK didn't bill (e.g. a
+    // subscription/OAuth path) — leave the figure hidden rather than invent one.
+    if (ev.cost_total != null) {
+      $('cost-big').textContent = fmtCost(ev.cost_total);
+      $('cost-big').hidden = false;
+    }
     if (ev.total_tokens) $('cost-tokens').textContent = fmtNum(ev.total_tokens);
-    $('cost-big').classList.remove('estimate');
     // Intentionally not reconciling cost-turns to ev.num_turns: the SDK counts every message
     // (assistant + tool_result), while the trace cards count model decisions. Keep them aligned.
     if (ev.duration_ms != null) $('cost-elapsed').textContent = fmtMs(ev.duration_ms);
     // Resolve any turn card whose usage snapshot never arrived (e.g. the final answer turn): its
-    // cost is folded into the authoritative total above, so retire the "awaiting usage" placeholder.
+    // tokens are folded into the authoritative total above, so retire the "awaiting usage" placeholder.
     document.querySelectorAll('.turn-header.pending').forEach(h => {
       h.classList.remove('pending');
       const stats = h.querySelector('.turn-stats');
@@ -961,10 +980,14 @@ function updateCostPanel(ev) {
   }
 }
 let currentTool = '';
-let coverage = null;
 let stick = true;
 let runFinished = false;
-let progressPct = 0;
+// Live plan checklist state. The agent plans with the Task* tools (TaskCreate/TaskUpdate by taskId)
+// or, as a fallback, TodoWrite. We reconstruct the list from those streamed tool-CALL args (built-in
+// plan tools emit no result through our SSE, only the call). planSeq mirrors the server's monotonic
+// task-id assignment so a TaskUpdate({taskId}) maps back to the task its TaskCreate added.
+let planTasks = [];   // [{ id, content, activeForm, status }]
+let planSeq = 0;
 // Trace turn-card grouping state. A "turn" = one model decision (thought + tool_calls) plus the
 // tool_results that follow it. We open a new card when a thought/tool_call arrives after a
 // usage/done boundary; the usage event fills the card header (it arrives at the END of the
@@ -1010,7 +1033,6 @@ function resetReport() {
     <div id="pulse"></div>
     <div id="status-text">Idle</div>
     <div id="tool-text"></div>
-    <div id="progress"><div id="progress-bar"></div></div>
   `;
   answerSlot = document.createElement('div');
   answerSlot.id = 'answer-slot';
@@ -1022,8 +1044,9 @@ function resetReport() {
   sectionStates = [];
   answerText = '';
   reportEvents = [];
-  coverage = null;
-  progressPct = 0;
+  planTasks = [];
+  planSeq = 0;
+  renderPlan();  // #plan is persistent (not rebuilt with the status panel), so clear it on reset
   setExportEnabled(false);
 }
 
@@ -1033,52 +1056,77 @@ function setExportEnabled(enabled) {
 
 function setStatus(state, text, toolText = '') {
   statusEl.hidden = false;
-  statusEl.className = [state || '', state === 'running' && progressPct > 0 ? 'active' : ''].filter(Boolean).join(' ');
+  statusEl.className = state || '';
   $('status-text').textContent = text;
   $('tool-text').textContent = toolText;
 }
 
-function setProgress(pct) {
-  progressPct = Math.max(0, Math.min(100, Number(pct) || 0));
-  $('progress-bar').style.width = progressPct + '%';
-  if (!statusEl.hidden && statusEl.classList.contains('running')) statusEl.classList.add('active');
+// Render the agent's live plan (planTasks) as a checklist. Status drives the mark + styling:
+// pending ○ / in_progress ▸ / completed ✓. An in_progress task shows its activeForm ("Mapping
+// coverage…"); others show their subject. The label shows completed/total — the only honest progress
+// signal we have, since it's the agent's own declared plan, not an invented percentage.
+function renderPlan() {
+  const plan = $('plan');
+  if (!plan) return;
+  const items = planTasks.filter(t => t && (t.content || t.activeForm));
+  if (!items.length) { plan.hidden = true; return; }
+  const list = plan.querySelector('.plan-list');
+  list.innerHTML = '';
+  let done = 0;
+  for (const t of items) {
+    const status = ['pending', 'in_progress', 'completed'].includes(t.status) ? t.status : 'pending';
+    if (status === 'completed') done++;
+    const label = status === 'in_progress' && t.activeForm ? t.activeForm : (t.content || t.activeForm || '');
+    const li = document.createElement('li');
+    li.className = 'plan-item ' + status;
+    li.innerHTML = `<span class="plan-mark"></span><span class="plan-text">${esc(label)}</span>`;
+    list.appendChild(li);
+  }
+  plan.querySelector('.plan-label').textContent = `Plan · ${done}/${items.length}`;
+  plan.hidden = false;
 }
 
-function bumpProgress(delta = 6) {
-  if (progressPct >= 92) return;
-  const eased = progressPct + ((92 - progressPct) * 0.12);
-  setProgress(Math.max(progressPct + delta, eased));
-}
-
-function updateProgressFromSummary(summary) {
-  const m = String(summary || '').match(/(\d+)\/(\d+)\s+inspected/i);
-  if (!m) return;
-  coverage = { inspected: Number(m[1]), total: Number(m[2]) };
-  const pct = coverage.total ? Math.round((coverage.inspected / coverage.total) * 100) : 0;
-  setProgress(pct);
-  setStatus('running', `Inspected ${coverage.inspected}/${coverage.total} issues`, currentTool ? `Current tool: ${currentTool}` : '');
-}
-
-function updateProgressFromTrace(ev) {
-  if (ev.type === 'tool_call') {
-    bumpProgress(3);
-    return;
+// Consume a plan tool_call (TodoWrite or Task*) into planTasks and redraw. Returns true if the event
+// was a plan tool — the caller then keeps it OUT of the trace list and cost bookkeeping. The built-in
+// plan tools stream only their call (no result), so we reconstruct state from the call args:
+//  - TodoWrite carries the FULL list every time → replace wholesale.
+//  - TaskCreate appends one pending task; we assign it the next sequential id (mirrors the server).
+//  - TaskUpdate mutates the task with the matching taskId (status/subject/activeForm, or remove).
+//  - TaskList/TaskGet/TaskStop/TaskOutput are reads/no-ops → swallow without touching state.
+function handlePlanEvent(ev) {
+  if (ev.type !== 'tool_call') return false;
+  const name = normalizeToolName(ev.name);
+  const a = ev.args || {};
+  if (name === 'TodoWrite') {
+    planTasks = (Array.isArray(a.todos) ? a.todos : []).map((t, i) => ({
+      id: String(i + 1),
+      content: t.content || t.activeForm || '',
+      activeForm: t.activeForm || '',
+      status: t.status || 'pending',
+    }));
+    planSeq = planTasks.length;
+    renderPlan();
+    return true;
   }
-  if (ev.type !== 'tool_result') return;
-
-  if (String(ev.summary || '').match(/(\d+)\/(\d+)\s+inspected/i)) {
-    updateProgressFromSummary(ev.summary);
-    return;
+  if (name === 'TaskCreate') {
+    planTasks.push({ id: String(++planSeq), content: a.subject || '', activeForm: a.activeForm || '', status: 'pending' });
+    renderPlan();
+    return true;
   }
-  if (ev.name === 'enumerate' && ev.coverage_total != null) {
-    const surfaced = Number(ev.surfaced || 0);
-    const total = Number(ev.coverage_total || 0);
-    const pct = total ? Math.round((surfaced / total) * 100) : progressPct;
-    setProgress(Math.max(progressPct, Math.min(88, pct)));
-    setStatus('running', `Enumerated ${fmtNum(surfaced)}/${fmtNum(total)} tagged pages`, currentTool ? `Current tool: ${currentTool}` : '');
-    return;
+  if (name === 'TaskUpdate') {
+    const t = planTasks.find(x => x.id === String(a.taskId));
+    if (t) {
+      if (a.status === 'deleted') planTasks = planTasks.filter(x => x !== t);
+      else {
+        if (a.status) t.status = a.status;
+        if (a.subject) t.content = a.subject;
+        if (a.activeForm) t.activeForm = a.activeForm;
+      }
+      renderPlan();
+    }
+    return true;
   }
-  bumpProgress(5);
+  return ['TaskList', 'TaskGet', 'TaskStop', 'TaskOutput'].includes(name);
 }
 
 function newSection(title) {
@@ -1207,8 +1255,9 @@ function traceMarkdown(ev) {
   return ev.text || '';
 }
 
-// Render the turn-card header content from a usage event. Pulls cost/latency/tokens/cache out of
-// the usage event so it can live in the card header instead of as its own row.
+// Render the turn-card header content from a usage event. Pulls latency/tokens/cache out of the
+// usage event so it can live in the card header instead of as its own row. No per-turn dollar
+// figure: the SDK has no mid-run cost, so the only cost we report is the run total on `done`.
 function turnHeaderHTML(turnNum, ev) {
   if (!ev) {
     return `<span class="turn-label">Turn #${turnNum}</span><span class="turn-stats">awaiting usage</span>`;
@@ -1219,7 +1268,7 @@ function turnHeaderHTML(turnNum, ev) {
   const io = `${fmtNum(ctx)} ctx / ${fmtNum(ev.output_tokens)} out`;
   const cache = (ev.cache_read_tokens || ev.cache_write_tokens)
     ? ` · cache ${fmtNum(ev.cache_read_tokens)}r/${fmtNum(ev.cache_write_tokens)}w` : '';
-  const stats = `${latency}${io}${cache} · <span class="turn-cost">+${fmtCost(ev.turn_cost)}</span> (Σ ${fmtCost(ev.cost_total)})`;
+  const stats = `${latency}${io}${cache}`;
   return `<span class="turn-label">Turn #${turnNum}</span><span class="turn-stats">${stats}</span>`;
 }
 
@@ -1310,6 +1359,9 @@ function appendEventRow(ev, parent) {
 }
 
 function onTrace(ev) {
+  // Plan tools (TodoWrite + Task*) drive the live checklist, not retrieval. Consume them here so they
+  // stay OUT of the trace card list and the cost/turn bookkeeping (which tracks eom tools only).
+  if (handlePlanEvent(ev)) return;
   updateCostPanel(ev);
   let elForEvent = null;
   if (ev.type === 'usage') {
@@ -1351,15 +1403,18 @@ function onTrace(ev) {
   }
   if (ev.type === 'tool_call') {
     currentTool = normalizeToolName(ev.name);
-    setStatus('running', coverage ? `Inspected ${coverage.inspected}/${coverage.total} issues` : 'Running', `Current tool: ${currentTool}`);
+    setStatus('running', 'Running', `Current tool: ${currentTool}`);
   }
-  updateProgressFromTrace(ev);
   if (ev.type === 'done') {
     setRunning(false);
     const label = ev.is_error ? 'Run ended with errors' : 'Run complete';
-    setStatus(ev.is_error ? 'error' : 'done', label, coverage ? `Inspected ${coverage.inspected}/${coverage.total} issues` : '');
-    if (!ev.is_error && (!coverage || coverage.total === 0 || coverage.inspected >= coverage.total)) {
-      setProgress(100);
+    setStatus(ev.is_error ? 'error' : 'done', label, '');
+    // The model often ends a successful run without a closing TaskUpdate, leaving its last task stuck
+    // in_progress — which reads as "still working" on a finished run. On a clean finish, settle any
+    // lingering in_progress task to completed so the checklist reflects reality. Errors are left as-is.
+    if (!ev.is_error && planTasks.some(t => t.status === 'in_progress')) {
+      planTasks.forEach(t => { if (t.status === 'in_progress') t.status = 'completed'; });
+      renderPlan();
     }
   }
   if (ev.type === 'error') {
@@ -1508,9 +1563,7 @@ function stopRun() {
   runFinished = true;
   setRunning(false);
   if (costElapsedTimer) { clearInterval(costElapsedTimer); costElapsedTimer = null; }
-  $('cost-big').classList.remove('estimate');
   setStatus('done', 'Stopped', 'Run stopped by you — refine and run again, or keep what was found.');
-  setProgress(progressPct);
 }
 
 // Clear everything and return to a blank slate.

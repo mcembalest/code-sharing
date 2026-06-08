@@ -47,25 +47,14 @@ AGENT_MODELS: dict[str, str] = {
 }
 AGENT_MODEL = AGENT_MODELS["sonnet"]
 
-
-def _prices(input_per_m: float, output_per_m: float) -> dict[str, float]:
-    # Standard Anthropic multipliers: cache write = 1.25x input, cache read = 0.10x input.
-    return {
-        "input": input_per_m / 1_000_000,
-        "output": output_per_m / 1_000_000,
-        "cache_write": input_per_m * 1.25 / 1_000_000,
-        "cache_read": input_per_m * 0.10 / 1_000_000,
-    }
-
-
-# Per-model token prices used ONLY for the live per-turn cost estimate emitted to the UI; the
-# SDK's ResultMessage.total_cost_usd is the authoritative figure we reconcile to on `done`.
-TOKEN_PRICES: dict[str, dict[str, float]] = {
-    "claude-haiku-4-5-20251001": _prices(1.00, 5.00),
-    "claude-sonnet-4-6": _prices(3.00, 15.00),
-    "claude-opus-4-8": _prices(15.00, 75.00),
-}
-DEFAULT_PRICES = TOKEN_PRICES[AGENT_MODEL]
+# Built-in planning tools we permit alongside our eom tools. The current CLI's model plans with the
+# stateful Task* API (TaskCreate/TaskUpdate by taskId) — and falls back to TodoWrite — rather than
+# inventing its own scheme. We allow the whole family so the plan actually functions (TaskList/Get
+# return real state instead of being denied), and the UI reconstructs a live checklist from their
+# streamed tool-call args. They touch no filesystem/shell — just an in-memory task list — so they're
+# safe to allow, same risk profile as TodoWrite. NOTE: "Task" (the sub-agent SPAWNER) is deliberately
+# NOT here and stays disallowed; these are the task-LIST tools, a different surface.
+PLAN_TOOLS = ["TodoWrite", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "TaskStop", "TaskOutput"]
 
 
 def resolve_model(value: str | None) -> str:
@@ -87,16 +76,6 @@ def authoritative_tokens(model_usage: dict[str, Any] | None) -> int:
     return sum(int(u.get(f, 0) or 0) for u in model_usage.values() for f in fields)
 
 
-def usage_cost(usage: dict[str, Any] | None, model: str | None = None) -> float:
-    if not usage:
-        return 0.0
-    prices = TOKEN_PRICES.get(model or "", DEFAULT_PRICES)
-    return (
-        usage.get("input_tokens", 0) * prices["input"]
-        + usage.get("output_tokens", 0) * prices["output"]
-        + usage.get("cache_creation_input_tokens", 0) * prices["cache_write"]
-        + usage.get("cache_read_input_tokens", 0) * prices["cache_read"]
-    )
 SYSTEM = """You are the research agent for "Eye on the Market" — 20 years (~5,100 pages) of \
 Michael Cembalest's J.P. Morgan letters, indexed page-by-page. The user is usually the author. \
 The user's input describes the desired OUTPUT (subject + scope + shape), not query text. Derive \
@@ -110,6 +89,21 @@ QUERY SHAPE — classify BEFORE retrieval, then match effort to shape
   so the result actually answers the temporal scope — don't return all-time hits for a "in 2007"
   question. Produce a short direct prose answer with [p. N] citations. Do NOT open with a
   "Coverage map:" header and do NOT enumerate broad topics — that's over-engineering here.
+  WHICH-CHART lookups ("when did I have the chart that did X", "find the chart where I showed Y")
+  are NARROW but have a distinct failure mode: the answer is ONE specific visual, and the user
+  usually describes what they REMEMBER about it — a metaphor, a cartoon, "Lego figures", "each
+  country as a different character" — not the words printed on the page, so the literal query can
+  rank a differently-worded chart above the real one. Rules: (a) a chart may be a satirical or
+  visual-metaphor graphic (a flowchart, illustration, cartoon), not only an axis plot — do NOT
+  discard those; (b) before committing a "the chart is X" verdict, `get` the page content of the
+  TOP 3–5 ranked search candidates (not every committed hit — find_mentions may have auto-committed
+  hundreds; you only need to verify the highest-ranked handful) rather than deciding from snippets
+  alone; (c) BE INCLUSIVE, not winner-take-all: the user wants every chart they might be picturing,
+  so when one of those inspected candidates depicts the SAME subject from a different angle (e.g. a
+  satirical Lego diagram of the euro crisis vs. a literal country-divergence plot), name it in the
+  answer too — list the best literal match as primary AND the related/remembered visual alongside it,
+  with a one-line note on what each shows. Do this from the handful you already inspected; do NOT
+  keep opening more pages once you have the best literal match plus any clearly-related visual.
 - TOPICAL / EXHAUSTIVE ("everything I wrote about X", "my view on X over time", "show me every
   chart of X"): coverage-map mode. Use enumerate as the backbone, group by sub-topic or
   chronology, emit headings, finish with a synthesizing answer block.
@@ -120,10 +114,14 @@ narrow answers do. The cost of over-investigating a narrow question is real (lat
 don't keep widening just for completeness when the answer is already in hand.
 
 TOOL SURFACE (7 tools)
-- find_mentions(terms, [date_range], [mode]): exact regex over page text + chart cards. Default
+- find_mentions(terms, [q], [date_range], [mode]): exact regex over page text + chart cards. Default
   UNION across terms — a page matches if any term hits. Pass mode="all" only when you truly need
   every term on the same page. AUTO-COMMITS matched pages as quote findings. Use FIRST for named
-  people, organizations, products, legislation, exact phrases.
+  people, organizations, products, legislation, exact phrases. `terms` must be DISTINCTIVE — names,
+  proper nouns, tickers, specific multi-word phrases. Do NOT pass generic dictionary words
+  ("dissimilar", "heterogeneous", "different", "divergence"): they match unrelated pages corpus-wide
+  and belong in `search`. ALWAYS pass q (the question's subject) so matches are ranked — relevant
+  ones commit as primary, off-topic ones as supporting; without q a cruder volume rule applies.
 - search(q, [date_range], [chart_only], [topic_id], [limit]): hybrid BM25 + semantic (RRF fusion).
   Returns ranked hits but does NOT commit. Use for widening / vocabulary-drift passes.
 - list_topics([high_level]): no args → high-level buckets. high_level=<bucket id> → granular topic
@@ -194,13 +192,27 @@ OUTPUT CONTRACT
   answer block only for a pure single-fact lookup where the one committed finding already IS the
   answer. Don't pad with "Coverage map:" scaffolding.
 
+PLAN (live checklist — shown to the user)
+Before retrieving, build a short ordered task list (3–6 tasks) for the sub-aspects or phases you
+intend to cover: call TaskCreate once per task (each gets status pending), then TaskUpdate to flip a
+task to in_progress when you start it and completed when you finish. Keep exactly one task
+in_progress at a time. Each task's subject must be short and in plain, user-facing language —
+describe the SUBJECT being worked, NOT the tool or the mechanism ("Find exact mentions of Hillary
+Clinton", "Map coverage of trade-policy writing", "Check for vocabulary drift over 20 years", "Write
+the summary"), never tool names ("enumerate", "find_mentions") or retrieval jargon ("BM25",
+"embeddings", "topic union"). This task list is rendered live to the user as a checklist, so keep it
+current as you go. ALWAYS publish a plan — there is no exception. Even a narrow single-lookup
+question gets a short 2–3 task checklist (e.g. "Find the chart" → "Verify the page" → "Write the
+answer"); the live checklist is part of every run's experience and must always appear.
+
 RETRIEVAL PLAYBOOK
 1. Decompose the question into sub-aspects and likely sub-topics.
 2. NAMED PEOPLE / ENTITIES: exact mentions are the recall backbone. Call find_mentions with the
    exact phrase plus distinctive alias variants (for "Hillary Clinton", terms=["Hillary Clinton",
    "Hillary"]; avoid bare surnames and generic role descriptors unless the user asked for that
-   broader scope). Remember: terms are UNIONed by default. Don't conclude an entity is absent
-   without this check.
+   broader scope). Remember: terms are UNIONed by default, so also pass q (the subject) to rank the
+   union and keep off-topic same-word matches out of the primary findings. Don't conclude an entity
+   is absent without this check.
 3. TOPICAL queries: list_topics to discover buckets, list_topics(high_level=<bucket>) to expand
    granular ids, then enumerate the relevant granular topic_ids together with the user's full
    query as q. For multi-aspect queries (subject + qualifier — an index + a margin measure, a
@@ -764,12 +776,17 @@ def filtered_indices(date_range: list[str] | None, chart_only: bool, topic_id: s
 
 @tool(
     "find_mentions",
-    "Exact regex search over merged page text + chart cards. Pass `terms` — the list of exact "
-    "phrases/aliases to look for (e.g. [\"China\",\"Chinese\",\"US-China\"]). Default behavior is "
-    "UNION: a page matches if ANY term appears. Pass mode=\"all\" to require every term on the same "
-    "page (rare — only for true conjunctions like \"Powell\" AND \"yield curve\"). Auto-commits "
-    "matched pages to the report as quote findings under one heading.",
-    {"terms": list, "date_range": list, "mode": str},
+    "Exact regex search over merged page text + chart cards. Pass `terms` — the list of DISTINCTIVE "
+    "exact phrases/aliases to look for (e.g. [\"China\",\"Chinese\",\"US-China\"]): named people, "
+    "organizations, products, legislation, tickers, or specific multi-word phrases. Do NOT pass "
+    "generic dictionary words ('dissimilar', 'heterogeneous', 'different', 'divergence') — they match "
+    "unrelated pages across the whole corpus and belong in `search`, which ranks by meaning. Default "
+    "behavior is UNION: a page matches if ANY term appears. Pass mode=\"all\" to require every term on "
+    "the same page (rare — only for true conjunctions like \"Powell\" AND \"yield curve\"). "
+    "Auto-commits matched pages to the report as quote findings under one heading. PASS `q` (the "
+    "subject of the user's question) so matches can be ranked: pages relevant to q are committed as "
+    "primary, off-topic matches as supporting — without q it falls back to a cruder volume rule.",
+    {"terms": list, "date_range": list, "mode": str, "q": str},
 )
 async def find_mentions(args: dict) -> dict:
     s = _load()
@@ -814,19 +831,40 @@ async def find_mentions(args: dict) -> dict:
         })
     matches.sort(key=lambda p: p["page"])
     matches = matches[:MAX_ENUMERATE]
+    # Per-page relevance. find_mentions has no ranker of its own, so the fallback leans on volume — a
+    # distinctive entity returns few hits (those ARE the answer -> primary); a common phrase floods
+    # (-> supporting). But a UNION mixing a sharp phrase with a generic word ("heterogeneous") drags
+    # in topically-unrelated pages that the volume rule still stamps "primary", flooding the report.
+    # When the caller passes the subject `q`, rank each matched page by embedding similarity to q and
+    # reserve "primary" for pages that clear the relevance floor; the off-topic remainder is committed
+    # as supporting so it never dominates. (Same floor + model as enumerate, so the bar is consistent.)
+    q = distill_query(str(args.get("q") or "")).strip()
+    page_relevance: dict[int, str] = {}
+    if q and matches:
+        qv = s["model"].encode([q], convert_to_numpy=True)[0]
+        qv = qv / (np.linalg.norm(qv) or 1.0)
+        for m in matches:
+            row = s["row_by_page"].get(m["page"])
+            m["_score"] = float(s["emb"][row] @ qv) if row is not None else 0.0
+            page_relevance[m["page"]] = "primary" if m["_score"] >= RELEVANCE_FLOOR else "supporting"
+        primaries = [m for m in matches if page_relevance[m["page"]] == "primary"]
+        if len(primaries) > FIND_MENTIONS_PRIMARY_MAX:  # flood guard still caps the primaries
+            keep = {id(m) for m in sorted(primaries, key=lambda x: x["_score"], reverse=True)[:FIND_MENTIONS_PRIMARY_MAX]}
+            for m in primaries:
+                if id(m) not in keep:
+                    page_relevance[m["page"]] = "supporting"
+    else:
+        default_rel = "primary" if len(matches) <= FIND_MENTIONS_PRIMARY_MAX else "supporting"
+        page_relevance = {m["page"]: default_rel for m in matches}
     if matches:
         label = ", ".join(terms[:4]) + (" ..." if len(terms) > 4 else "")
         await emit({"lane": "report", "kind": "heading", "text": f"Exact mentions: {label}"})
         src = "find_mentions:" + ",".join(terms[:3])
-        # Precision-by-volume: a distinctive entity returns few hits (those are the answer -> primary);
-        # a common phrase over-matches and would flood the report -> commit the batch as supporting so
-        # the UI tucks it behind the disclosure. See FIND_MENTIONS_PRIMARY_MAX.
-        relevance = "primary" if len(matches) <= FIND_MENTIONS_PRIMARY_MAX else "supporting"
         for m in matches:
             await emit({"lane": "report", "kind": "quote",
                         "page": m["page"], "issue_date": m.get("issue_date"),
                         "title": m.get("title"), "text": m["snippet"],
-                        "relevance": relevance, "src": src})
+                        "relevance": page_relevance.get(m["page"], "supporting"), "src": src})
     await emit({"lane": "trace", "type": "tool_result", "name": "find_mentions",
                 "summary": f"{len(matches)} pages matched (mode={mode})" +
                            (": " + ", ".join(f"p.{m['page']}" for m in matches[:12]) if matches else "")})
@@ -1052,7 +1090,8 @@ async def enumerate_topics(args: dict) -> dict:
 @tool(
     "get",
     "Return merged page records. Pass exactly one selector: `page` (single page), `start`+`end` "
-    "(inclusive span), or `issue_id` (all pages of one issue).",
+    "(inclusive span), or `issue_id` (all pages of one issue). Pages are 1-based; to read one page "
+    "just pass page=N (you do NOT also need start/end).",
     {"page": int, "start": int, "end": int, "issue_id": str},
 )
 async def get(args: dict) -> dict:
@@ -1068,19 +1107,25 @@ async def get(args: dict) -> dict:
             "pages": [compact_page(p) for p in pages[:MAX_LIST_LIMIT]],
             "total_pages": len(pages),
         })}]}
-    if args.get("start") is not None and args.get("end") is not None:
-        start, end = int(args["start"]), int(args["end"])
+    # Pages are 1-based, so 0 means "unset". Models routinely send page=N alongside start=0,end=0;
+    # that used to fall into the range branch and return "p.0-p.0 -> 0 pages", wasting a whole turn
+    # until the model retried. Only treat start/end as a real span when BOTH are positive; otherwise
+    # fall through to the single-page selector.
+    start_arg, end_arg, page_arg = args.get("start"), args.get("end"), args.get("page")
+    has_span = bool(start_arg) and bool(end_arg) and int(start_arg) > 0 and int(end_arg) > 0
+    if not has_span and page_arg:
+        n = int(page_arg)
+        page = s["page_by_num"].get(n)
+        await emit({"lane": "trace", "type": "tool_result", "name": "get", "summary": f"p.{n}" + ("" if page else " (no such page)")})
+        return {"content": [{"type": "text", "text": json.dumps(compact_page(page) if page else None)}]}
+    if has_span:
+        start, end = int(start_arg), int(end_arg)
         pages = [p for p in s["pages"] if start <= int(p["page"]) <= end]
         await emit({"lane": "trace", "type": "tool_result", "name": "get", "summary": f"p.{start}-p.{end} -> {len(pages)} pages"})
         return {"content": [{"type": "text", "text": json.dumps({
             "total": len(pages),
             "pages": [compact_page(p) for p in pages[:MAX_LIST_LIMIT]],
         })}]}
-    if args.get("page") is not None:
-        n = int(args["page"])
-        page = s["page_by_num"].get(n)
-        await emit({"lane": "trace", "type": "tool_result", "name": "get", "summary": f"p.{n}"})
-        return {"content": [{"type": "text", "text": json.dumps(compact_page(page) if page else None)}]}
     await emit({"lane": "trace", "type": "tool_result", "name": "get", "summary": "no selector supplied"})
     return {"content": [{"type": "text", "text": json.dumps({"error": "pass page, start+end, or issue_id"})}]}
 
@@ -1203,8 +1248,10 @@ async def _only_eom(tool_name: str, input_data: dict, context):
     # allowed_tools only governs auto-approval; the SDK's built-in tools (Bash, Read,
     # Grep, ...) stay reachable and the agent WILL shell out (e.g. grep its own on-disk
     # tool-result cache) if left open. Deny anything that isn't one of our tools so it
-    # must go through the indexes — never the filesystem or shell.
-    if tool_name.startswith("mcp__eom__"):
+    # must go through the indexes — never the filesystem or shell. The PLAN_TOOLS family
+    # (TodoWrite + Task*) is the exception we keep: those touch no filesystem/shell, just the
+    # agent's live plan (their ToolUseBlocks carry the task list) which the UI renders as a checklist.
+    if tool_name.startswith("mcp__eom__") or tool_name in PLAN_TOOLS:
         return PermissionResultAllow(updated_input=input_data)
     return PermissionResultDeny(message="Use only the eom search tools.", interrupt=False)
 
@@ -1219,14 +1266,18 @@ def build_options(model: str | None = None, resume: str | None = None) -> Claude
         resume=resume,
         system_prompt=SYSTEM,
         mcp_servers={"eom": eom},
-        allowed_tools=[f"mcp__eom__{t.name}" for t in TOOLS],
-        # can_use_tool below is the real lockdown (it denies anything not mcp__eom__*). This list
-        # is the belt-and-suspenders: it removes built-ins from the OFFERED tool set so the model
-        # doesn't waste a turn calling one only to be denied. Keep it current with the CLI — 2.x
-        # added ToolSearch (observed being called + denied), plus Task/TodoWrite/plan/shell built-ins.
+        # The PLAN_TOOLS family (TodoWrite + Task*) is allowed alongside our tools so the agent can
+        # publish a live plan; the UI reconstructs a checklist from their calls (see PLAN in the prompt).
+        allowed_tools=[f"mcp__eom__{t.name}" for t in TOOLS] + PLAN_TOOLS,
+        # can_use_tool below is the real lockdown (it denies anything not mcp__eom__* / PLAN_TOOLS).
+        # This list is the belt-and-suspenders: it removes built-ins from the OFFERED tool set so the
+        # model doesn't waste a turn calling one only to be denied. Keep it current with the CLI — 2.x
+        # added ToolSearch (observed being called + denied), plus the plan/shell built-ins. The
+        # PLAN_TOOLS are intentionally NOT disallowed (we surface them as the live checklist); "Task"
+        # here is the sub-agent SPAWNER (distinct from the TaskCreate/TaskUpdate task-list tools).
         disallowed_tools=["Bash", "Read", "Write", "Edit", "MultiEdit", "Glob", "Grep",
                           "WebSearch", "WebFetch", "NotebookEdit", "ToolSearch", "Task",
-                          "TodoWrite", "ExitPlanMode", "BashOutput", "KillShell", "SlashCommand"],
+                          "ExitPlanMode", "BashOutput", "KillShell", "SlashCommand"],
         can_use_tool=_only_eom,
         setting_sources=[],
     )
@@ -1307,10 +1358,8 @@ async def run_agent(prompt: str, model: str | None = None):
     run_options = build_options(selected_model)
 
     run_start = time.perf_counter()
-    cost_total = 0.0  # cumulative LIVE estimate from per-turn usage; reconciled to SDK total at done
 
     async def drive() -> None:
-        nonlocal cost_total
         last_turn = time.perf_counter()
         counted_msg_ids: set[str] = set()  # dedupe repeated AssistantMessage streams by message_id
         session_id: str | None = None      # captured so a transient drop can resume the SAME session
@@ -1320,7 +1369,7 @@ async def run_agent(prompt: str, model: str | None = None):
             # Drive ONE query() attempt. Returns (status, detail) where status is "ok" (clean
             # ResultMessage, success or non-transient error — done_payload is stashed) or "transient"
             # (recoverable drop — caller may resume). Raises on a fatal/non-transient exception.
-            nonlocal cost_total, last_turn, session_id, done_payload
+            nonlocal last_turn, session_id, done_payload
             async for msg in query(prompt=prompt_arg, options=opts):
                 sid = getattr(msg, "session_id", None)
                 if sid:
@@ -1331,22 +1380,18 @@ async def run_agent(prompt: str, model: str | None = None):
                             await q.put({"lane": "trace", "type": "thought", "text": block.text})
                         elif isinstance(block, ToolUseBlock):
                             await q.put({"lane": "trace", "type": "tool_call", "name": block.name, "args": block.input})
-                    # Per-turn (LLM component) cost + latency. The SDK streams the SAME AssistantMessage
+                    # Per-turn token usage + latency. The SDK streams the SAME AssistantMessage
                     # multiple times (one emission per content block group) with the same message_id, so
-                    # count a turn only ONCE per message_id. NOTE: the per-turn usage here is a
-                    # message_start SNAPSHOT — input/cache tokens are real, but output_tokens is a stub
-                    # (~1), because the model hasn't generated its output yet. The true output (and thus
-                    # the bulk of cost on answer-heavy turns) only lands in ResultMessage at the end. So
-                    # this running figure is a deliberate LOWER-BOUND estimate; we reconcile to the
-                    # authoritative ResultMessage.total_cost_usd on `done`. See cost-reconcile log below.
+                    # count a turn only ONCE per message_id. NOTE: this is a message_start SNAPSHOT —
+                    # input/cache tokens are real, but output_tokens is a stub (~1) because the model
+                    # hasn't generated its output yet; the real output count lands in ResultMessage at
+                    # the end. We surface token/latency telemetry per turn but emit NO per-turn dollar
+                    # figure: the SDK has no mid-run cost, so the only cost we report is the
+                    # authoritative ResultMessage.total_cost_usd on `done`.
                     if msg.usage and (msg.message_id is None or msg.message_id not in counted_msg_ids):
                         if msg.message_id is not None:
                             counted_msg_ids.add(msg.message_id)
                         now = time.perf_counter()
-                        # Prefer the model id the API actually billed (msg.model); fall back to
-                        # the requested model if that's missing on a particular message.
-                        turn_cost = usage_cost(msg.usage, msg.model or selected_model)
-                        cost_total += turn_cost
                         fresh_in = msg.usage.get("input_tokens", 0)
                         cache_r = msg.usage.get("cache_read_input_tokens", 0)
                         cache_w = msg.usage.get("cache_creation_input_tokens", 0)
@@ -1359,8 +1404,6 @@ async def run_agent(prompt: str, model: str | None = None):
                             # Total input context processed this turn (fresh + cached), which is the
                             # meaningful size — fresh input alone is tiny once the prompt is cached.
                             "context_tokens": fresh_in + cache_r + cache_w,
-                            "turn_cost": round(turn_cost, 6),
-                            "cost_total": round(cost_total, 6),
                             "latency_ms": round((now - last_turn) * 1000, 1),
                         })
                         last_turn = now
@@ -1373,25 +1416,16 @@ async def run_agent(prompt: str, model: str | None = None):
                     ):
                         return "transient", str(msg.result or msg.api_error_status or "transient API error")
                     # ResultMessage is the authoritative end-of-run accounting. total_cost_usd is the
-                    # real billed cost (our running cost_total is only a lower-bound estimate — see the
-                    # note in the AssistantMessage branch). model_usage carries the real cumulative
-                    # token counts (incl. the output our live snapshots stubbed at ~1). Reconcile both.
-                    final_cost = msg.total_cost_usd if msg.total_cost_usd is not None else cost_total
+                    # real billed cost reported by the SDK — the ONLY cost figure we report (None if
+                    # the SDK didn't bill, e.g. a subscription/OAuth path). model_usage carries the
+                    # real cumulative token counts (incl. the output our live snapshots stubbed at ~1).
+                    final_cost = (
+                        round(msg.total_cost_usd, 6) if msg.total_cost_usd is not None else None
+                    )
                     total_tokens = authoritative_tokens(msg.model_usage)
-                    # Reconciliation log: estimate vs. authoritative. A large ratio is the signal that
-                    # the live figure diverged from the billed total (stubbed output under-counts; a
-                    # subscription/OAuth billing path can make the authoritative total lower instead).
-                    if msg.total_cost_usd is not None and msg.total_cost_usd > 0:
-                        ratio = cost_total / msg.total_cost_usd
-                        print(
-                            f"[cost-reconcile] estimate=${cost_total:.4f} "
-                            f"authoritative=${msg.total_cost_usd:.4f} ratio={ratio:.2f}x "
-                            f"turns={msg.num_turns} model_usage={msg.model_usage}",
-                            file=sys.stderr, flush=True,
-                        )
                     done_payload = {
                         "lane": "trace", "type": "done", "is_error": msg.is_error,
-                        "cost_total": round(final_cost, 6),
+                        "cost_total": final_cost,
                         "total_tokens": total_tokens,
                         "duration_ms": msg.duration_ms,
                         "num_turns": msg.num_turns,
@@ -1429,7 +1463,7 @@ async def run_agent(prompt: str, model: str | None = None):
                     # minimal one if the stream ended without a ResultMessage.
                     await q.put(done_payload or {
                         "lane": "trace", "type": "done", "is_error": False,
-                        "cost_total": round(cost_total, 6),
+                        "cost_total": None,
                     })
                     return
 
@@ -1438,14 +1472,14 @@ async def run_agent(prompt: str, model: str | None = None):
                     await q.put({"lane": "trace", "type": "error",
                                  "text": f"Transient API error, gave up after {attempt} attempt(s): {detail}"})
                     await q.put({"lane": "trace", "type": "done", "is_error": True,
-                                 "cost_total": round(cost_total, 6)})
+                                 "cost_total": None})
                     return
                 await q.put({"lane": "trace", "type": "notice",
                              "text": f"⟳ Transient API drop — resuming run (attempt {attempt + 1}/{MAX_RUN_ATTEMPTS})"})
                 await asyncio.sleep(RETRY_BACKOFF_S * attempt)
         except Exception as exc:  # noqa: BLE001
             await q.put({"lane": "trace", "type": "error", "text": str(exc)})
-            await q.put({"lane": "trace", "type": "done", "is_error": True, "cost_total": round(cost_total, 6)})
+            await q.put({"lane": "trace", "type": "done", "is_error": True, "cost_total": None})
 
     task = asyncio.create_task(drive())
     trace_seq = 0
@@ -1464,8 +1498,11 @@ async def run_agent(prompt: str, model: str | None = None):
                 trace_seq += 1
                 ev["id"] = trace_seq
                 # Per-tool latency: time from a tool_call to its tool_result (tools run sequentially).
+                # Only our eom tools emit a matching tool_result via emit(); the PLAN_TOOLS (TodoWrite/
+                # Task*) are handled internally by the SDK and emit none, so pairing off them would
+                # leave pending_call_ts set and inflate the NEXT eom tool's latency. Pair eom only.
                 ev_ts = ev.get("_ts", time.perf_counter())
-                if ev.get("type") == "tool_call":
+                if ev.get("type") == "tool_call" and str(ev.get("name") or "").startswith("mcp__eom__"):
                     pending_call_ts = ev_ts
                 elif ev.get("type") == "tool_result" and pending_call_ts is not None:
                     ev["latency_ms"] = round((ev_ts - pending_call_ts) * 1000, 1)

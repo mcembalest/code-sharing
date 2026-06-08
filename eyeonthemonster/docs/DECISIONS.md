@@ -84,6 +84,70 @@ is what reliably surfaces the Lego chart (rank 1–2 under its own "blame-shifti
 
 ---
 
+## Euro-crisis Lego chart — card enrichment + which-chart prompt rule
+
+Third pass on the same motivating example. The prior two passes (search-limit cap → 25, angle fan-out)
+were **retrieval** fixes — but a re-run showed retrieval was no longer the problem. For the query "when
+did I have a chart on the dissimilarities of the countries in the EMU", the agent **already had** the
+Lego chart twice: `search` returned p.915 at fused rank 11 (inside its limit-20 result), and
+`find_mentions(["European Monetary Union", …])` auto-committed it. The agent still dropped it — it
+snippet-picked three other candidates (p.749 cultural divide, p.1282 Countrymatch, p.4588 divergence)
+to `get` and never reconsidered 915. So this was a **selection/synthesis** miss, not a recall miss.
+
+Two changes, because the user asked for both:
+
+1. **Card enrichment (index).** The vision card for the Lego chart described it as *burden-shifting
+   among bailout actors* — accurate, but it never said the chart depicts each EMU member/institution
+   as a distinct figure, so it ranked below literal "dissimilarity" charts. Appended an honest
+   sentence to `cards.jsonl` for **p.915** (Sept 6 2011) and **p.4589** (the June 12 2025 reprise)
+   noting each country/institution is parodied as a different Lego figure dramatizing the differences
+   among the members, then rebuilt BM25+embeddings. This is index enrichment of true visual content,
+   **not** a per-query regex (the thing the architecture explicitly forbids). Effect (chart_only):
+   under the user's phrasing p.915 moved rank **17 → 5** and p.4589 **→ 3** (both now inside the
+   default limit of 10); unrelated queries (solar/margins/tariffs) unchanged. Reproduce by re-running
+   the ranking probe against the rebuilt index.
+
+2. **Which-chart prompt rule (`SYSTEM`, NARROW section).** "When/which was the chart that did X" is
+   narrow but distinct: the answer is one visual and the user describes what they *remember* (a
+   metaphor, "Lego figures", "each country as a different character"), not the printed words. The rule
+   tells the agent (a) a chart may be a satirical/visual-metaphor graphic, not only an axis plot; (b)
+   `get` the actual page content of top candidates — including pages already auto-committed — before
+   committing a verdict; (c) never finalize while a higher-ranked or already-committed chart hit sits
+   un-inspected. Targets the root cause; behavioral, so validated by reasoning + the deterministic
+   retrieval gain above, not a cheap automated check.
+
+---
+
+## Live-test fixes (find_mentions ranking, get() ergonomics, always-plan)
+
+Found by driving the live app (Playwright) on the dissimilarity query above and watching the trace.
+
+- **find_mentions now ranks by `q` (Primary-flood fix).** find_mentions has no ranker of its own, so
+  it used a pure volume rule: ≤12 matches ⇒ all "primary". A UNION that mixed a sharp phrase with a
+  generic word ("heterogeneous") then stamped 8 topically-unrelated pages (OPEB, CRE, tech, vaccines)
+  as Primary right under the answer. Note df doesn't catch this — "heterogeneous" hits only 8 pages,
+  so a frequency threshold won't fire; the pages are *topically* generic, not lexically common. Fix:
+  find_mentions takes an optional `q` (the question subject) and ranks matches by embedding similarity
+  to it, reserving "primary" for pages clearing `RELEVANCE_FLOOR` (same floor/model as enumerate). The
+  8 noise pages scored <0.12 → supporting; only p.593 (0.42) and p.4104 (0.43) stayed primary. The
+  prompt also now tells the agent to reserve find_mentions for DISTINCTIVE terms (names/phrases) and
+  push generic words to `search`, and to always pass `q`.
+- **get() lone-page ergonomics.** Models routinely send `{page:N, start:0, end:0}`; the old branch
+  order treated start/end=0 as a real span and returned "p.0-p.0 → 0 pages", wasting a whole turn
+  (~20s) until the model retried with `{start:N,end:N}`. Pages are 1-based, so 0 now means "unset":
+  a span counts only when BOTH start and end are positive, otherwise a positive `page` wins.
+- **Always plan.** The PLAN section used to let the agent skip the live checklist for narrow
+  single-lookups. The checklist is part of every run's UX, so the skip clause is removed — even a
+  narrow question publishes a short 2–3 step plan.
+- **WHICH-CHART rule scoped to bound cost.** The first draft said "don't finalize while an
+  already-committed chart hit is un-inspected"; with find_mentions auto-committing hundreds of pages
+  that made the agent chase them all (one run hit 21 turns / 1.1M tokens / $0.79). Rescoped to "verify
+  the top 3–5 ranked search candidates, then stop" → back to ~16 turns / $0.28. The rule also asks the
+  agent to be inclusive and name a clearly-related remembered visual (e.g. the Lego diagram) alongside
+  the best literal match — best-effort; the model still often answers with only the literal charts.
+
+---
+
 ## Constants left as-is (already justified)
 
 | constant | value | justification | risk if wrong |
